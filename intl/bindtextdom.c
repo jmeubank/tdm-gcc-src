@@ -23,6 +23,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #ifdef _LIBC
 # include <libintl.h>
@@ -90,6 +91,12 @@ __libc_rwlock_define (extern, _nl_state_lock attribute_hidden)
 static void set_binding_values PARAMS ((const char *domainname,
 					const char **dirnamep,
 					const char **codesetp));
+
+#if ENABLE_RELOCATABLE
+# include "relocatex.h"
+#else
+# define relocate(pathname) (pathname)
+#endif
 
 /* Specifies the directory name *DIRNAMEP and the output codeset *CODESETP
    to be used for the DOMAINNAME message catalog.
@@ -352,8 +359,23 @@ BINDTEXTDOMAIN (domainname, dirname)
      const char *domainname;
      const char *dirname;
 {
+/*
   set_binding_values (domainname, &dirname, NULL);
   return (char *) dirname;
+*/
+  if (!dirname || !access(dirname, R_OK)) {
+	  set_binding_values (domainname, &dirname, NULL);
+	  return (char *) dirname;
+  } else {
+	  char *locale_dirname, *installdir = strdup (dirname), *s;
+	  if ((s = strrchr (installdir, '/'))) *s = '\0';
+	  if ((s = strrchr (installdir, '/'))) *s = '\0';
+	  locale_dirname = relocatex (installdir, dirname);
+	  set_binding_values (domainname, (const char **) &locale_dirname, NULL);
+	  if (installdir)
+	  	free (installdir);
+	  return (char *) locale_dirname;
+  }	  
 }
 
 /* Specify the character encoding in which the messages from the
