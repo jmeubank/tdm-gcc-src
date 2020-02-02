@@ -700,9 +700,20 @@ static inline struct gomp_thread *gomp_thread (void)
 }
 #else
 extern pthread_key_t gomp_tls_key;
+extern void initialize_team (void);
+extern void gomp_fatal (const char *, ...)
+	__attribute__((noreturn, format (printf, 1, 2)));
 static inline struct gomp_thread *gomp_thread (void)
 {
-  return pthread_getspecific (gomp_tls_key);
+  struct gomp_thread* GompThread = pthread_getspecific (gomp_tls_key);
+  if (!GompThread) {
+    initialize_team();
+    GompThread = pthread_getspecific (gomp_tls_key);
+    if (!GompThread) {
+      gomp_fatal("Uncorrectable NULL gomp_thread()");
+    }
+  }
+  return GompThread;
 }
 #endif
 
