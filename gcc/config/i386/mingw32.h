@@ -255,8 +255,9 @@ do {						         \
 #undef TARGET_FORMAT_TYPES
 #define TARGET_FORMAT_TYPES mingw_format_attributes
 
+/* MS specific attributes account for 3; adding mingw_printf makes 4.  */
 #undef TARGET_N_FORMAT_TYPES
-#define TARGET_N_FORMAT_TYPES 3
+#define TARGET_N_FORMAT_TYPES 4
 
 #define HAVE_ENABLE_EXECUTE_STACK
 #undef  CHECK_EXECUTE_STACK_ENABLED
