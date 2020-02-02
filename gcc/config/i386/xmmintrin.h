@@ -33,6 +33,10 @@
 /* Get _mm_malloc () and _mm_free ().  */
 #include <mm_malloc.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Constants for use with _mm_prefetch.  */
 enum _mm_hint
 {
@@ -1250,6 +1254,10 @@ do {									\
   (row2) = __builtin_ia32_movlhps (__t2, __t3);				\
   (row3) = __builtin_ia32_movhlps (__t3, __t2);				\
 } while (0)
+
+#ifdef __cplusplus
+}
+#endif
 
 /* For backward source compatibility.  */
 # include <emmintrin.h>
