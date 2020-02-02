@@ -59,6 +59,8 @@
    That fails to compile, if malloc is poisoned, i.e. if !IN_RTS.  */
 #define _X86INTRIN_H_INCLUDED
 #endif
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #include <windows.h>
 
 #ifdef __cplusplus

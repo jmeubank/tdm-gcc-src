@@ -80,6 +80,7 @@
 #define FD_SETSIZE 1024
 
 #ifdef __MINGW32__
+#include "mingw32.h"
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
@@ -184,7 +185,9 @@
 #endif
 
 #include <limits.h>
-#include <errno.h>
+#ifndef __MINGW32__
+#   include <errno.h>
+#endif
 
 #if defined (__vxworks) && ! defined (__RTP__)
 #include <sys/times.h>
