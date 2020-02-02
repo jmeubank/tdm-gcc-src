@@ -145,6 +145,10 @@ along with GCC; see the file COPYING3.  If not see
   " LINK_SPEC_LARGE_ADDR_AWARE "\
   %(shared_libgcc_undefs)"
 
+/* There is a bug when building i686 dw-2 exceptions
+   where gcc_s gets stripped which this works around */
+#define PREVENT_STRIP_REG_FRAME_INFO "--undefined=___deregister_frame_info --undefined=___register_frame_info"
+
 /* Include in the mingw32 libraries with libgcc */
 #ifdef ENABLE_SHARED_LIBGCC
 #define SHARED_LIBGCC_SPEC " \
@@ -152,7 +156,7 @@ along with GCC; see the file COPYING3.  If not see
  %{!static: \
    %{!static-libgcc: \
      %{!shared-libgcc:-lgcc} \
-     %{shared-libgcc:-lgcc_s -lgcc} \
+     %{shared-libgcc:-lgcc_s " PREVENT_STRIP_REG_FRAME_INFO " -lgcc} \
     } \
   } "
 #else
