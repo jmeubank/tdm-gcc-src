@@ -724,6 +724,12 @@ extern void stack_limit_increase (unsigned long);
 extern void *C_alloca (size_t) ATTRIBUTE_MALLOC;
 #undef alloca
 #if GCC_VERSION >= 2000 && !defined USE_C_ALLOCA
+   /* Some version of mingw have an <alloca.h> that causes trouble when
+      included after 'alloca' gets defined as a macro.  As a workaround, include
+      this <alloca.h> first and define 'alloca' as a macro afterwards.  */
+# if (__MINGW32_VERSION >= 5002000L)
+#  include <alloca.h>
+# endif
 # define alloca(x) __builtin_alloca(x)
 # undef C_ALLOCA
 # define ASTRDUP(X) \
