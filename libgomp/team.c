@@ -171,7 +171,7 @@ gomp_new_team (unsigned nthreads)
     {
       size_t extra = sizeof (team->ordered_release[0])
 		     + sizeof (team->implicit_task[0]);
-      team = gomp_malloc (sizeof (*team) + nthreads * extra);
+      team = gomp_malloc_cleared (sizeof (*team) + nthreads * extra);
 
 #ifndef HAVE_SYNC_BUILTINS
       gomp_mutex_init (&team->work_share_list_free_lock);
@@ -1102,7 +1102,7 @@ struct gomp_task_icv *
 gomp_new_icv (void)
 {
   struct gomp_thread *thr = gomp_thread ();
-  struct gomp_task *task = gomp_malloc (sizeof (struct gomp_task));
+  struct gomp_task *task = gomp_malloc_cleared (sizeof (struct gomp_task));
   gomp_init_task (task, NULL, &gomp_global_icv);
   thr->task = task;
 #ifdef LIBGOMP_USE_PTHREADS

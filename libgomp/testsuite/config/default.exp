@@ -15,3 +15,7 @@
 # <http://www.gnu.org/licenses/>.
 
 load_lib "standard.exp"
+
+# Support for old dejagnu.  Must be loaded here, not in libstdc++.exp, to
+# make sure all existing procs are loaded when their presence is tested.
+load_file $srcdir/../../gcc/testsuite/lib/dejapatches.exp

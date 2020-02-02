@@ -85,6 +85,7 @@ alloc_work_share (struct gomp_team *team)
 #else
   ws = gomp_malloc (team->work_share_chunk * sizeof (struct gomp_work_share));
 #endif
+  memset (ws, 0, team->work_share_chunk * sizeof (struct gomp_work_share));
   ws->next_alloc = team->work_shares[0].next_alloc;
   team->work_shares[0].next_alloc = ws;
   team->work_share_list_alloc = &ws[1];
@@ -191,7 +192,7 @@ gomp_work_share_start (size_t ordered)
   /* Work sharing constructs can be orphaned.  */
   if (team == NULL)
     {
-      ws = gomp_malloc (sizeof (*ws));
+      ws = gomp_malloc_cleared (sizeof (*ws));
       gomp_init_work_share (ws, ordered, 1);
       thr->ts.work_share = ws;
       return true;
