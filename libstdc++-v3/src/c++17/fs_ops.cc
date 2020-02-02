@@ -242,7 +242,7 @@ fs::canonical(const path& p, error_code& ec)
 	      if (!ec)
 		{
 		  if (--max_allowed_symlinks == 0)
-		    ec.assign(ELOOP, std::generic_category());
+		    ec = make_error_code(std::errc::too_many_symbolic_link_levels);
 		  else
 		    {
 		      if (link.is_absolute())

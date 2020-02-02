@@ -105,7 +105,19 @@ namespace __gnu_posix
 
   inline int rename(const wchar_t* oldname, const wchar_t* newname)
   { return _wrename(oldname, newname); }
-
+#ifdef __MINGW32_VERSION /* MinGW.org */
+  inline int truncate(const wchar_t* path, off_t length)
+  {
+    const int fd = ::_wopen(path, _O_BINARY|_O_RDWR);
+    if (fd == -1)
+      return fd;
+    const int ret = ::ftruncate(fd, length);
+    int err = errno;
+    ::_close(fd);
+    errno = err;
+    return ret;
+  }
+#else
   inline int truncate(const wchar_t* path, _off64_t length)
   {
     const int fd = ::_wopen(path, _O_BINARY|_O_RDWR);
@@ -118,6 +130,7 @@ namespace __gnu_posix
     ::_set_errno(err);
     return ret;
   }
+#endif
   using char_type = wchar_t;
 #elif defined _GLIBCXX_HAVE_UNISTD_H
   using ::open;

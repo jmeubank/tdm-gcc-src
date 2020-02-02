@@ -99,9 +99,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 //    not_a_stream = 				ENOSTR,
 //    not_connected = 				ENOTCONN,
       not_enough_memory = 			ENOMEM,
-#ifdef _GLIBCXX_HAVE_ENOTSUP
-      not_supported = 				ENOTSUP,
-#endif
+      not_supported = 				129, /* ENOTSUP from MinGW-w64 errno.h */
 //    operation_canceled = 			ECANCELED,
 //    operation_in_progress = 			EINPROGRESS,
 #ifdef _GLIBCXX_HAVE_EPERM
@@ -127,12 +125,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #endif
       too_many_files_open_in_system = 		ENFILE,
       too_many_files_open = 			EMFILE,
-      too_many_links = 				EMLINK
-//    too_many_symbolic_link_levels = 		ELOOP,
-#ifdef _GLIBCXX_HAVE_EOVERFLOW
-	,
-      value_too_large = 			EOVERFLOW
-#endif
+      too_many_links = 				EMLINK,
+      too_many_symbolic_link_levels = 	114, /* ELOOP from MinGW-w64 errno.h */
+      value_too_large = 			132 /* EOVERFLOW from MinGW-w64 errno.h */
 //    wrong_protocol_type = 			EPROTOTYPE
    };
 
