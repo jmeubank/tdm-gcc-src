@@ -31,8 +31,10 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 #define __GTHREADS 1
 #define __GTHREADS_CXX0X 1
-
 #include <pthread.h>
+#if defined (_WIN32) && !defined (__CYGWIN__)
+#define _GTHREAD_USE_MUTEX_INIT_FUNC 1
+#endif
 
 #if ((defined(_LIBOBJC) || defined(_LIBOBJC_WEAK)) \
      || !defined(_GTHREAD_USE_MUTEX_TIMEDLOCK))
