@@ -590,7 +590,9 @@ gt_pch_restore (FILE *f)
   size_t i;
   struct mmap_info mmi;
   int result;
-
+  long pch_tabs_off;
+  long pch_data_off;
+  
   /* Delete any deletable objects.  This makes ggc_pch_read much
      faster, as it can be sure that no GCable objects remain other
      than the ones just read in.  */
@@ -598,20 +600,24 @@ gt_pch_restore (FILE *f)
     for (rti = *rt; rti->base != NULL; rti++)
       memset (rti->base, 0, rti->stride);
 
-  /* Read in all the scalar variables.  */
+  /* We need to read tables after mapping, or fatal_error will
+     segfault when gt_pch_use_address returns -1. Skip them for now. */
+  pch_tabs_off = ftell(f);
+     
+  /* Skip all the scalar variables. */
   for (rt = gt_pch_scalar_rtab; *rt; rt++)
     for (rti = *rt; rti->base != NULL; rti++)
-      if (fread (rti->base, rti->stride, 1, f) != 1)
-	fatal_error (input_location, "can%'t read PCH file: %m");
+      if (fseek (f, rti->stride, SEEK_CUR) != 0)
+        fatal_error (input_location, "can%'t read PCH file: %m");
 
-  /* Read in all the global pointers, in 6 easy loops.  */
+  /* Skip all the global pointers. */
   for (rt = gt_ggc_rtab; *rt; rt++)
     for (rti = *rt; rti->base != NULL; rti++)
       for (i = 0; i < rti->nelt; i++)
-	if (fread ((char *)rti->base + rti->stride * i,
-		   sizeof (void *), 1, f) != 1)
-	  fatal_error (input_location, "can%'t read PCH file: %m");
-
+        if (fseek (f, sizeof (void *), SEEK_CUR) != 0)
+          fatal_error (input_location, "can%'t read PCH file: %m");
+          
+  /* mmi still has to be read now. */          
   if (fread (&mmi, sizeof (mmi), 1, f) != 1)
     fatal_error (input_location, "can%'t read PCH file: %m");
 
@@ -622,12 +628,35 @@ gt_pch_restore (FILE *f)
   if (result == 0)
     {
       if (fseek (f, mmi.offset, SEEK_SET) != 0
-	  || fread (mmi.preferred_base, mmi.size, 1, f) != 1)
-	fatal_error (input_location, "can%'t read PCH file: %m");
+          || fread (mmi.preferred_base, mmi.size, 1, f) != 1)
+        fatal_error (input_location, "can%'t read PCH file: %m");
     }
   else if (fseek (f, mmi.offset + mmi.size, SEEK_SET) != 0)
     fatal_error (input_location, "can%'t read PCH file: %m");
+    
+  /* File mapping done, read tables now. */
+  pch_data_off = ftell(f);
+  
+  if (fseek (f, pch_tabs_off, SEEK_SET) != 0)
+    fatal_error (input_location, "can%'t read PCH file: %m");
 
+  /* Read in all the scalar variables.  */
+  for (rt = gt_pch_scalar_rtab; *rt; rt++)
+    for (rti = *rt; rti->base != NULL; rti++)
+      if (fread (rti->base, rti->stride, 1, f) != 1)
+        fatal_error (input_location, "can%'t read PCH file: %m");
+
+  /* Read in all the global pointers, in 6 easy loops.  */
+  for (rt = gt_ggc_rtab; *rt; rt++)
+    for (rti = *rt; rti->base != NULL; rti++)
+      for (i = 0; i < rti->nelt; i++)
+        if (fread ((char *)rti->base + rti->stride * i,
+            sizeof (void *), 1, f) != 1)
+          fatal_error (input_location, "can%'t read PCH file: %m");
+
+  if (fseek (f, pch_data_off, SEEK_SET) != 0)
+    fatal_error (input_location, "can%'t read PCH file: %m");
+            
   ggc_pch_read (f, mmi.preferred_base);
 
   gt_pch_restore_stringpool ();
