@@ -22,6 +22,9 @@ mconsole
 Target RejectNegative
 Create console application.
 
+mcrtdll=
+Target RejectNegative Joined
+
 mdll
 Target RejectNegative
 Generate code for a DLL.
