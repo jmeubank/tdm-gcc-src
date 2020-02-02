@@ -78,7 +78,7 @@ __deregister_frame_info (__attribute__((unused)) const void *p)
 /* Stick a label at the beginning of the frame unwind info so we can
    register/deregister it with the exception handling library code.  */
 #if DWARF2_UNWIND_INFO
-static EH_FRAME_SECTION_CONST char __EH_FRAME_BEGIN__[]
+EH_FRAME_SECTION_CONST char __EH_FRAME_BEGIN__[]
   __attribute__((used, section(__LIBGCC_EH_FRAME_SECTION_NAME__), aligned(4)))
   = { };
 
