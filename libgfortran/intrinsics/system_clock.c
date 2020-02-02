@@ -28,6 +28,11 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 #include "time_1.h"
 
+#ifdef __MINGW32__
+#include <pthread.h>
+#include <pthread_time.h>
+#endif
+
 
 #if !defined(__MINGW32__)
 

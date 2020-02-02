@@ -136,7 +136,7 @@ along with GCC; see the file COPYING3.  If not see
   "%{!shared:%{!mdll:%{!m64:--large-address-aware}}}"
 #endif
 
-#define LINK_SPEC "%{mwindows:--subsystem windows} \
+#define LINK_SPEC "--exclude-libs=libpthread.a %{mwindows:--subsystem windows} \
   %{mconsole:--subsystem console} \
   %{shared: %{mdll: %eshared and mdll are not compatible}} \
   %{shared: --shared} %{mdll:--dll} \
