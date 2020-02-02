@@ -56,7 +56,7 @@
 #define POSIX
 #include "tconfig.h"
 #include "tsystem.h"
-#include <fcntl.h>
+#include "adafcntl.h"
 #include <sys/stat.h>
 #else
 #include "config.h"
