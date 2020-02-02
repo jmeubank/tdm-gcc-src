@@ -24,6 +24,7 @@
 
 #include <bits/c++config.h>
 #include "unwind-cxx.h"
+#include "shmem.h"
 
 /* We default to the talkative, informative handler in a normal hosted
    library.  This pulls in the demangler, the dyn-string utilities, and
@@ -34,11 +35,18 @@
 
 #if _GLIBCXX_HOSTED && _GLIBCXX_VERBOSE && __cpp_exceptions
 /* The current installed user handler.  */
-std::terminate_handler __cxxabiv1::__terminate_handler =
-	__gnu_cxx::__verbose_terminate_handler;
+namespace __cxxabiv1
+{
+	__SHMEM_DEFINE_INIT(std::terminate_handler, __terminate_handler_sh,
+		__gnu_cxx::__verbose_terminate_handler)
+}
 #else
 # include <cstdlib>
 /* The current installed user handler.  */
-std::terminate_handler __cxxabiv1::__terminate_handler = std::abort;
+namespace __cxxabiv1
+{
+	__SHMEM_DEFINE_INIT(std::terminate_handler, __terminate_handler_sh,
+		std::abort)
+}
 #endif
 

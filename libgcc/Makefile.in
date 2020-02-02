@@ -871,6 +871,11 @@ include $(iterator)
 
 endif
 
+libgcc-objects += shmem-win32.o
+shmem-win32.o: $(srcdir)/../libgcc/config/i386/shmem-win32.c
+	$(filter-out -fexceptions,$(gcc_compile)) \
+	 -fno-exceptions -c $(srcdir)/../libgcc/config/i386/shmem-win32.c
+
 # Build LIBUNWIND. Use -fno-exceptions so that the unwind library does
 # not generate calls to __gcc_personality_v0.
 
