@@ -270,5 +270,10 @@ do {						         \
 #else
 #define LIBGCC_EH_EXTN "_sjlj"
 #endif
-#define LIBGCC_SONAME "libgcc_s" LIBGCC_EH_EXTN "-1.dll"
+#if __x86_64
+#define LIBGCC_64_EXTN "_64"
+#else
+#define LIBGCC_64_EXTN
+#endif
+#define LIBGCC_SONAME "libgcc_s" LIBGCC_EH_EXTN LIBGCC_64_EXTN "-1.dll"
 

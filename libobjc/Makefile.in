@@ -261,11 +261,21 @@ install-info:
 
 LTLDFLAGS = $(shell $(SHELL) $(top_srcdir)/../libtool-ldflags $(LDFLAGS))
 
+MAYBE64 = $(if $(findstring x86_64,$(target_noncanonical)),$(if $(MULTISUBDIR),,_64),$(if $(findstring /64,$(MULTISUBDIR)),_64))
+TARGET_MAYBE64 = $(patsubst %.la,%$(MAYBE64).la,$@)
 libobjc$(libsuffix).la: $(OBJS)
-	$(LIBTOOL_LINK) $(CC) -o $@ $(OBJS) \
+	$(LIBTOOL_LINK) $(CC) -o $(TARGET_MAYBE64) $(OBJS) \
 		-Wc,-shared-libgcc -rpath $(toolexeclibdir) \
 		-version-info $(LIBOBJC_VERSION) $(extra_ldflags_libobjc) \
-		$(LTLDFLAGS)
+		$(LTLDFLAGS) \
+	&& rm -f "$@" \
+	&& cat ".libs/$(TARGET_MAYBE64)" | sed 's/\(.*\)_64\(\.dll\)\?\.a/\1\2\.a/' >"$@" \
+	&& cp -p "$@" ".libs/$@" \
+	&& cp -p "$@" ".libs/$@i" \
+	&& mv -f "$(patsubst %.la,%.dll.a,.libs/$(TARGET_MAYBE64))" tmp \
+	&& mv -f tmp "$(patsubst %.la,%.dll.a,.libs/$@)" \
+	&& mv -f "$(patsubst %.la,%.a,.libs/$(TARGET_MAYBE64))" tmp \
+	&& mv -f tmp "$(patsubst %.la,%.a,.libs/$@)"
 
 libobjc_gc$(libsuffix).la: $(OBJS_GC)
 	$(LIBTOOL_LINK) $(CC) -o $@ $(OBJS_GC) $(OBJC_BOEHM_GC_LIBS) \

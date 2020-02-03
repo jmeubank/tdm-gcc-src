@@ -192,7 +192,7 @@ am__v_lt_1 =
 libgomp_plugin_hsa_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
 	$(libgomp_plugin_hsa_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
-	$(libgomp_plugin_hsa_la_LDFLAGS) $(LDFLAGS) -o $@
+	$(libgomp_plugin_hsa_la_LDFLAGS) $(LDFLAGS) -o $(TARGET_MAYBE64)
 @PLUGIN_HSA_TRUE@am_libgomp_plugin_hsa_la_rpath = -rpath \
 @PLUGIN_HSA_TRUE@	$(toolexeclibdir)
 @PLUGIN_NVPTX_TRUE@libgomp_plugin_nvptx_la_DEPENDENCIES = libgomp.la \
@@ -580,8 +580,10 @@ nodist_libsubinclude_HEADERS = omp.h openacc.h
 @USE_FORTRAN_TRUE@	openacc_lib.h openacc.f90 openacc.mod openacc_kinds.mod
 
 LTLDFLAGS = $(shell $(SHELL) $(top_srcdir)/../libtool-ldflags $(LDFLAGS))
+MAYBE64 = $(if $(findstring x86_64,$(host_triplet)),$(if $(MULTISUBDIR),,_64),$(if $(findstring /64,$(MULTISUBDIR)),_64))
+TARGET_MAYBE64 = $(patsubst %.la,%$(MAYBE64).la,$@)
 LINK = $(LIBTOOL) --tag CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link \
-	$(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LTLDFLAGS) -o $@
+	$(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LTLDFLAGS) -o $(TARGET_MAYBE64)
 
 
 # Automake Documentation:
@@ -711,13 +713,27 @@ clean-toolexeclibLTLIBRARIES:
 	}
 
 libgomp-plugin-hsa.la: $(libgomp_plugin_hsa_la_OBJECTS) $(libgomp_plugin_hsa_la_DEPENDENCIES) $(EXTRA_libgomp_plugin_hsa_la_DEPENDENCIES) 
-	$(AM_V_CCLD)$(libgomp_plugin_hsa_la_LINK) $(am_libgomp_plugin_hsa_la_rpath) $(libgomp_plugin_hsa_la_OBJECTS) $(libgomp_plugin_hsa_la_LIBADD) $(LIBS)
+	$(AM_V_CCLD)$(libgomp_plugin_hsa_la_LINK) $(am_libgomp_plugin_hsa_la_rpath) $(libgomp_plugin_hsa_la_OBJECTS) $(libgomp_plugin_hsa_la_LIBADD) $(LIBS) \
+	&& rm -f "$@" \
+	&& cat ".libs/$(TARGET_MAYBE64)" | sed 's/\(.*\)_64\(\.dll\)\?\.a/\1\2\.a/' >"$@" \
+	&& cp -p "$@" ".libs/$@" \
+	&& cp -p "$@" ".libs/$@i" \
+	&& mv -f "$(patsubst %.la,%.dll.a,.libs/$(TARGET_MAYBE64))" tmp \
+	&& mv -f tmp "$(patsubst %.la,%.dll.a,.libs/$@)"
 
 libgomp-plugin-nvptx.la: $(libgomp_plugin_nvptx_la_OBJECTS) $(libgomp_plugin_nvptx_la_DEPENDENCIES) $(EXTRA_libgomp_plugin_nvptx_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(libgomp_plugin_nvptx_la_LINK) $(am_libgomp_plugin_nvptx_la_rpath) $(libgomp_plugin_nvptx_la_OBJECTS) $(libgomp_plugin_nvptx_la_LIBADD) $(LIBS)
 
 libgomp.la: $(libgomp_la_OBJECTS) $(libgomp_la_DEPENDENCIES) $(EXTRA_libgomp_la_DEPENDENCIES) 
-	$(AM_V_GEN)$(libgomp_la_LINK) -rpath $(toolexeclibdir) $(libgomp_la_OBJECTS) $(libgomp_la_LIBADD) $(LIBS)
+	$(AM_V_GEN)$(libgomp_la_LINK) -rpath $(toolexeclibdir) $(libgomp_la_OBJECTS) $(libgomp_la_LIBADD) $(LIBS) \
+	&& rm -f "$@" \
+	&& cat ".libs/$(TARGET_MAYBE64)" | sed 's/\(.*\)_64\(\.dll\)\?\.a/\1\2\.a/' >"$@" \
+	&& cp -p "$@" ".libs/$@" \
+	&& cp -p "$@" ".libs/$@i" \
+	&& mv -f "$(patsubst %.la,%.dll.a,.libs/$(TARGET_MAYBE64))" tmp \
+	&& mv -f tmp "$(patsubst %.la,%.dll.a,.libs/$@)" \
+	&& mv -f "$(patsubst %.la,%.a,.libs/$(TARGET_MAYBE64))" tmp \
+	&& mv -f tmp "$(patsubst %.la,%.a,.libs/$@)"
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)

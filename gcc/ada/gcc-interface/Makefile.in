@@ -530,8 +530,8 @@ install-gnatlib: ../stamp-gnatlib-$(RTSDIR) install-gcc-specs
 #     Also install the .dSYM directories if they exist (these directories
 #     contain the debug information for the shared libraries on darwin)
 	for file in gnat gnarl; do \
-	   if [ -f $(RTSDIR)/lib$${file}$(hyphen)$(LIBRARY_VERSION)$(soext) ]; then \
-	      $(INSTALL) $(RTSDIR)/lib$${file}$(hyphen)$(LIBRARY_VERSION)$(soext) \
+	   if [ -f $(RTSDIR)/lib$${file}$(MAYBE64)$(hyphen)$(LIBRARY_VERSION)$(soext) ]; then \
+	      $(INSTALL) $(RTSDIR)/lib$${file}$(MAYBE64)$(hyphen)$(LIBRARY_VERSION)$(soext) \
 			 $(DESTDIR)$(ADA_RTL_OBJ_DIR); \
 	   fi; \
 	   if [ -f $(RTSDIR)/lib$${file}$(soext) ]; then \
@@ -730,6 +730,9 @@ gnatlib-shared-dual-win32:
 # the GNATLIBFLAGS when this will be supported by GNAT. At this point we will
 # use the gnatlib-shared-dual-win32 target to build the GNAT runtimes on
 # Windows.
+MAYBE64 = $(if $(findstring x86_64,$(host_canonical)),$(if $(MULTISUBDIR),,_64),$(if $(findstring /64,$(MULTISUBDIR)),_64))
+LIBGNAT_MAYBE64 = libgnat$(MAYBE64)$(hyphen)$(LIBRARY_VERSION)$(soext)
+LIBGNARL_MAYBE64 = libgnarl$(MAYBE64)$(hyphen)$(LIBRARY_VERSION)$(soext)
 gnatlib-shared-win32:
 	$(MAKE) $(FLAGS_TO_PASS) \
              GNATLIBFLAGS="$(GNATLIBFLAGS)" \
@@ -744,7 +747,7 @@ gnatlib-shared-win32:
 	cd $(RTSDIR); `echo "$(GCC_FOR_TARGET)" \
                 | sed -e 's,\./xgcc,../../xgcc,' -e 's,-B\./,-B../../,'` -shared -shared-libgcc \
 		$(PICFLAG_FOR_TARGET) \
-		-o libgnat$(hyphen)$(LIBRARY_VERSION)$(soext) \
+		-o $(LIBGNAT_MAYBE64) \
 		$(GNATRTL_NONTASKING_OBJS) $(LIBGNAT_OBJS) \
 		$(SO_OPTS)libgnat$(hyphen)$(LIBRARY_VERSION)$(soext) \
 		-Wl,-out-implib,libgnat$(hyphen)$(LIBRARY_VERSION).dll.a \
@@ -752,11 +755,11 @@ gnatlib-shared-win32:
 	cd $(RTSDIR); `echo "$(GCC_FOR_TARGET)" \
                 | sed -e 's,\./xgcc,../../xgcc,' -e 's,-B\./,-B../../,'` -shared -shared-libgcc \
 		$(PICFLAG_FOR_TARGET) \
-		-o libgnarl$(hyphen)$(LIBRARY_VERSION)$(soext) \
+		-o $(LIBGNARL_MAYBE64) \
 		$(GNATRTL_TASKING_OBJS) \
 		$(SO_OPTS)libgnarl$(hyphen)$(LIBRARY_VERSION)$(soext) \
 		-Wl,-out-implib,libgnarl$(hyphen)$(LIBRARY_VERSION).dll.a \
-		$(THREADSLIB) -Wl,libgnat$(hyphen)$(LIBRARY_VERSION)$(soext)
+		$(THREADSLIB) -Wl,$(LIBGNAT_MAYBE64)
 
 gnatlib-shared-darwin:
 	$(MAKE) $(FLAGS_TO_PASS) \
