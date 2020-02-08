@@ -1,0 +1,91 @@
+# HG changeset patch
+
+From: J.M. Eubank <john@thesnappy.net>
+
+# Parent a3d8da318870ed60e340e9420811fc82ffbe5db6
+# Parent  a402c1f7e77bdb7cf37bdd88adf77588dc570470
+---
+ gcc/config/i386/mingw-w64.h           |    2 +-
+ gcc/config/i386/mingw32.h             |    2 +-
+ libgcc/gthr-posix.h                   |    2 +-
+ libgfortran/intrinsics/system_clock.c |    5 +++++
+ libstdc++-v3/configure                |    4 ++--
+ 5 files changed, 10 insertions(+), 5 deletions(-)
+
+diff --git a/gcc/config/i386/mingw-w64.h b/gcc/config/i386/mingw-w64.h
+index c6a126bfb..38aeac271 100644
+--- a/gcc/config/i386/mingw-w64.h
++++ b/gcc/config/i386/mingw-w64.h
+@@ -90,7 +90,7 @@ along with GCC; see the file COPYING3.  If not see
+ #endif
+ 
+ #undef LINK_SPEC
+-#define LINK_SPEC SUB_LINK_SPEC " %{mwindows:--subsystem windows} \
++#define LINK_SPEC SUB_LINK_SPEC " --exclude-libs=libpthread.a %{mwindows:--subsystem windows} \
+   %{mconsole:--subsystem console} \
+   %{shared: %{mdll: %eshared and mdll are not compatible}} \
+   %{shared: --shared} %{mdll:--dll} \
+diff --git a/gcc/config/i386/mingw32.h b/gcc/config/i386/mingw32.h
+index f0ceca42b..a00434e40 100644
+--- a/gcc/config/i386/mingw32.h
++++ b/gcc/config/i386/mingw32.h
+@@ -136,7 +136,7 @@ along with GCC; see the file COPYING3.  If not see
+   "%{!shared:%{!mdll:%{!m64:--large-address-aware}}}"
+ #endif
+ 
+-#define LINK_SPEC "%{mwindows:--subsystem windows} \
++#define LINK_SPEC "--exclude-libs=libpthread.a %{mwindows:--subsystem windows} \
+   %{mconsole:--subsystem console} \
+   %{shared: %{mdll: %eshared and mdll are not compatible}} \
+   %{shared: --shared} %{mdll:--dll} \
+diff --git a/libgcc/gthr-posix.h b/libgcc/gthr-posix.h
+index 88cbc2393..882f9e80d 100644
+--- a/libgcc/gthr-posix.h
++++ b/libgcc/gthr-posix.h
+@@ -82,7 +82,7 @@ typedef struct timespec __gthread_time_t;
+ # define __GTHREAD_COND_INIT_FUNCTION __gthread_cond_init_function
+ #endif
+ 
+-#if SUPPORTS_WEAK && GTHREAD_USE_WEAK
++#if SUPPORTS_WEAK && GTHREAD_USE_WEAK && !defined(__MINGW32__)
+ # ifndef __gthrw_pragma
+ #  define __gthrw_pragma(pragma)
+ # endif
+diff --git a/libgfortran/intrinsics/system_clock.c b/libgfortran/intrinsics/system_clock.c
+index a101e728a..905cdb903 100644
+--- a/libgfortran/intrinsics/system_clock.c
++++ b/libgfortran/intrinsics/system_clock.c
+@@ -28,6 +28,11 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+ 
+ #include "time_1.h"
+ 
++#ifdef __MINGW32__
++#include <pthread.h>
++#include <pthread_time.h>
++#endif
++
+ 
+ #if !defined(__MINGW32__)
+ 
+diff --git a/libstdc++-v3/configure b/libstdc++-v3/configure
+index 5acf79cba..1b1d31584 100755
+--- a/libstdc++-v3/configure
++++ b/libstdc++-v3/configure
+@@ -21431,7 +21431,7 @@ $as_echo_n "checking for usleep... " >&6; }
+ int
+ main ()
+ {
+-sleep(1);
++/* sleep(1); */
+                       usleep(100);
+   ;
+   return 0;
+@@ -21452,7 +21452,7 @@ $as_echo "#define HAVE_USLEEP 1" >>confdefs.h
+ $as_echo "$ac_has_usleep" >&6; }
+   fi
+ 
+-  if test x"$ac_has_nanosleep$ac_has_sleep" = x"nono"; then
++  if test x"$ac_has_sleep" = x"no"; then
+       { $as_echo "$as_me:${as_lineno-$LINENO}: checking for Sleep" >&5
+ $as_echo_n "checking for Sleep... " >&6; }
+       cat confdefs.h - <<_ACEOF >conftest.$ac_ext

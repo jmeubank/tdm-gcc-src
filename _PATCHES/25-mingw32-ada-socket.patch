@@ -1,0 +1,46 @@
+# HG changeset patch
+
+From: J.M. Eubank <john@thesnappy.net>
+
+# Parent  ee46895100525c45f760cf5d6fa2ca94e2bd4e73
+---
+ gcc/ada/gsocket.h |    5 ++++-
+ gcc/ada/mingw32.h |    2 ++
+ 2 files changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/gcc/ada/gsocket.h b/gcc/ada/gsocket.h
+index 200edabae..2e3b31272 100644
+--- a/gcc/ada/gsocket.h
++++ b/gcc/ada/gsocket.h
+@@ -80,6 +80,7 @@
+ #define FD_SETSIZE 1024
+ 
+ #ifdef __MINGW32__
++#include "mingw32.h"
+ #include <winsock2.h>
+ #include <ws2tcpip.h>
+ 
+@@ -184,7 +185,9 @@
+ #endif
+ 
+ #include <limits.h>
+-#include <errno.h>
++#ifndef __MINGW32__
++#   include <errno.h>
++#endif
+ 
+ #if defined (__vxworks) && ! defined (__RTP__)
+ #include <sys/times.h>
+diff --git a/gcc/ada/mingw32.h b/gcc/ada/mingw32.h
+index 988433d7a..6f47aed6c 100644
+--- a/gcc/ada/mingw32.h
++++ b/gcc/ada/mingw32.h
+@@ -59,6 +59,8 @@
+    That fails to compile, if malloc is poisoned, i.e. if !IN_RTS.  */
+ #define _X86INTRIN_H_INCLUDED
+ #endif
++#include <winsock2.h>
++#include <ws2tcpip.h>
+ #include <windows.h>
+ 
+ #ifdef __cplusplus
