@@ -1,0 +1,57 @@
+Make GCC fully relocatable, not searching any fixed paths
+
+From: J.M. Eubank <john@thesnappy.net>
+
+that aren't relative to the current installation path
+
+# HG changeset patch
+# Parent 2a1167ee4ed20c6ff3558a104218585837e9963f
+---
+ 0 files changed
+
+diff --git a/gcc/config/i386/mingw32.h b/gcc/config/i386/mingw32.h
+index 086c0e460..f0ceca42b 100644
+--- a/gcc/config/i386/mingw32.h
++++ b/gcc/config/i386/mingw32.h
+@@ -78,7 +78,7 @@ along with GCC; see the file COPYING3.  If not see
+ #endif
+ 
+ #undef NATIVE_SYSTEM_HEADER_COMPONENT
+-#define NATIVE_SYSTEM_HEADER_COMPONENT "MINGW"
++#undef NATIVE_SYSTEM_HEADER_DIR
+ 
+ #undef CPP_SPEC
+ #define CPP_SPEC "%{posix:-D_POSIX_SOURCE} %{mthreads:-D_MT} " \
+@@ -183,17 +183,12 @@ along with GCC; see the file COPYING3.  If not see
+ 
+ /* Override startfile prefix defaults.  */
+ #ifndef STANDARD_STARTFILE_PREFIX_1
+-#define STANDARD_STARTFILE_PREFIX_1 "/mingw/lib/"
++#define STANDARD_STARTFILE_PREFIX_1 ""
+ #endif
+ #ifndef STANDARD_STARTFILE_PREFIX_2
+ #define STANDARD_STARTFILE_PREFIX_2 ""
+ #endif
+ 
+-/* For native mingw-version we need to take care that NATIVE_SYSTEM_HEADER_DIR
+-   macro contains POSIX-style path.  See bug 52947.  */
+-#undef NATIVE_SYSTEM_HEADER_DIR
+-#define NATIVE_SYSTEM_HEADER_DIR "/mingw/include"
+-
+ /* Output STRING, a string representing a filename, to FILE.
+    We canonicalize it to be in Unix format (backslashes are replaced
+    forward slashes.  */
+diff --git a/gcc/incpath.c b/gcc/incpath.c
+index bcbe20829..c5d4453d8 100644
+--- a/gcc/incpath.c
++++ b/gcc/incpath.c
+@@ -183,8 +183,7 @@ add_standard_paths (const char *sysroot, const char *iprefix,
+ 	      str = concat (sysroot_no_trailing_dir_separator, p->fname, NULL);
+ 	      free (sysroot_no_trailing_dir_separator);
+ 	    }
+-	  else if (!p->add_sysroot && relocated
+-		   && !filename_ncmp (p->fname, cpp_PREFIX, cpp_PREFIX_len))
++	  if (relocated && !filename_ncmp (p->fname, cpp_PREFIX, cpp_PREFIX_len))
+ 	    {
+  	      static const char *relocated_prefix;
+ 	      char *ostr;

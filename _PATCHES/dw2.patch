@@ -1,0 +1,16 @@
+Modify the GCC version string when building the DW2 unwinding flavor
+
+From: J.M. Eubank <john@thesnappy.net>
+
+# HG changeset patch
+# Parent  cd2300ce19a0a5a4dbbb8cd13c6e27ee665ea0c4
+---
+ 0 files changed
+
+diff --git a/gcc/BASE-VER b/gcc/BASE-VER
+index deeb3d66e..b31c88ade 100644
+--- a/gcc/BASE-VER
++++ b/gcc/BASE-VER
+@@ -1 +1 @@
+-9.2.0
++9.2.0-dw2

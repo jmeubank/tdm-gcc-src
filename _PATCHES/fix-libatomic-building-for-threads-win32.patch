@@ -1,0 +1,25 @@
+Build libatomic with pthreads on Windows
+
+From: J.M. Eubank <john@thesnappy.net>
+
+From
+   <https://github.com/niXman/mingw-builds/blob/develop/patches/gcc/gcc-5.1.0-fix-libatomic-building-for-threads%3Dwin32.patch>
+
+# HG changeset patch
+# Parent  25dbfd4f8f2f48ab4ab3f75d656cc905e0aa9410
+---
+ 0 files changed
+
+diff --git a/libatomic/configure.tgt b/libatomic/configure.tgt
+index ecbb7d33c..252194be6 100644
+--- a/libatomic/configure.tgt
++++ b/libatomic/configure.tgt
+@@ -146,7 +146,7 @@ case "${target}" in
+ 	# OS support for atomic primitives.
+         case ${target_thread_file} in
+           win32)
+-            config_path="${config_path} mingw"
++            config_path="${config_path} posix"
+             ;;
+           posix)
+             config_path="${config_path} posix"

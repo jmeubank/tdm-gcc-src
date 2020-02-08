@@ -1,0 +1,24 @@
+Remove static modifier from `__EH_FRAME_BEGIN__`
+
+From: J.M. Eubank <john@thesnappy.net>
+
+Allows visibility across compilation units
+
+# HG changeset patch
+# Parent  e23fe8fb17a828b8c38062d4aaa0b98253e95353
+---
+ 0 files changed
+
+diff --git a/libgcc/config/i386/cygming-crtbegin.c b/libgcc/config/i386/cygming-crtbegin.c
+index d970aa501..a9470d847 100644
+--- a/libgcc/config/i386/cygming-crtbegin.c
++++ b/libgcc/config/i386/cygming-crtbegin.c
+@@ -78,7 +78,7 @@ __deregister_frame_info (__attribute__((unused)) const void *p)
+ /* Stick a label at the beginning of the frame unwind info so we can
+    register/deregister it with the exception handling library code.  */
+ #if DWARF2_UNWIND_INFO
+-static EH_FRAME_SECTION_CONST char __EH_FRAME_BEGIN__[]
++EH_FRAME_SECTION_CONST char __EH_FRAME_BEGIN__[]
+   __attribute__((used, section(__LIBGCC_EH_FRAME_SECTION_NAME__), aligned(4)))
+   = { };
+ 

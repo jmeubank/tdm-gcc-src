@@ -1,0 +1,148 @@
+Minor build system hacks for building TDM-GCC in MSYS
+
+From: J.M. Eubank <john@thesnappy.net>
+
+# HG changeset patch
+# Parent  db2614a7a9de3e8937b91240b306247b7fbead77
+---
+ 0 files changed
+
+diff --git a/gnattools/Makefile.in b/gnattools/Makefile.in
+index 83a358260..e60f18047 100644
+--- a/gnattools/Makefile.in
++++ b/gnattools/Makefile.in
+@@ -79,19 +79,21 @@ CXX_LFLAGS = \
+ TOOLS_FLAGS_TO_PASS_NATIVE= \
+         "CC=../../xgcc -B../../ $(GNATTOOLS_NATIVE_CFLAGS)" \
+         "CXX=../../xg++ -B../../ $(CXX_LFLAGS) $(GNATTOOLS_NATIVE_CFLAGS)" \
+-	"CFLAGS=$(CFLAGS) $(WARN_CFLAGS)" \
+-	"LDFLAGS=$(LDFLAGS)" \
++        "CFLAGS=$(CFLAGS) $(WARN_CFLAGS) $(GNATTOOLS_NATIVE_CFLAGS)" \
++        "LDFLAGS=$(LDFLAGS) $(GNATTOOLS_NATIVE_LDFLAGS)" \
+ 	"ADAFLAGS=$(ADAFLAGS)" \
+ 	"ADA_CFLAGS=$(ADA_CFLAGS)" \
+ 	"INCLUDES=$(INCLUDES_FOR_SUBDIR)" \
+-	"ADA_INCLUDES=-I- -I../rts $(ADA_INCLUDES_FOR_SUBDIR)"\
++        "ADA_INCLUDES=-I- -I../rts$(GNATTOOLS_NATIVE_RTS_SUFFIX) $(ADA_INCLUDES_FOR_SUBDIR)"\
+ 	"exeext=$(exeext)" \
+ 	"fsrcdir=$(fsrcdir)" \
+ 	"srcdir=$(fsrcdir)" \
+ 	"GNATMAKE=../../gnatmake" \
+ 	"GNATLINK=../../gnatlink" \
+ 	"GNATBIND=../../gnatbind" \
+-	"TOOLSCASE=native"
++	"TOOLSCASE=native" \
++        "MULTISUBDIR=$(GNATTOOLS_NATIVE_MULTISUBDIR)" \
++        "GCC_LINK_FLAGS=$(GNATTOOLS_NATIVE_GCC_LINK_FLAGS)"
+ 
+ # Variables for regnattools
+ TOOLS_FLAGS_TO_PASS_RE= \
+diff --git a/include/libiberty.h b/include/libiberty.h
+index 574761350..38ad4d783 100644
+--- a/include/libiberty.h
++++ b/include/libiberty.h
+@@ -724,6 +724,12 @@ extern void stack_limit_increase (unsigned long);
+ extern void *C_alloca (size_t) ATTRIBUTE_MALLOC;
+ #undef alloca
+ #if GCC_VERSION >= 2000 && !defined USE_C_ALLOCA
++   /* Some version of mingw have an <alloca.h> that causes trouble when
++      included after 'alloca' gets defined as a macro.  As a workaround, include
++      this <alloca.h> first and define 'alloca' as a macro afterwards.  */
++# if (__MINGW32_VERSION >= 5002000L)
++#  include <alloca.h>
++# endif
+ # define alloca(x) __builtin_alloca(x)
+ # undef C_ALLOCA
+ # define ASTRDUP(X) \
+diff --git a/intl/dcigettext.c b/intl/dcigettext.c
+index a8d4a14d2..718d9ad39 100644
+--- a/intl/dcigettext.c
++++ b/intl/dcigettext.c
+@@ -30,6 +30,13 @@
+ #include <sys/types.h>
+ 
+ #ifdef __GNUC__
++  /* Some versions of mingw have an <alloca.h> that causes trouble when
++   * included after 'alloca' gets defined as a macro.  As a workaround, include
++   * this <alloca.h> first and define 'alloca' as a macro afterwards.
++   */
++# if (__MINGW32_VERSION >= 5002000L)
++#  include <alloca.h>
++# endif
+ # define alloca __builtin_alloca
+ # define HAVE_ALLOCA 1
+ #else
+diff --git a/intl/loadmsgcat.c b/intl/loadmsgcat.c
+index 536ee1262..aff8365aa 100644
+--- a/intl/loadmsgcat.c
++++ b/intl/loadmsgcat.c
+@@ -34,6 +34,13 @@
+ #include <sys/stat.h>
+ 
+ #ifdef __GNUC__
++  /* Some versions of mingw have an <alloca.h> that causes trouble when
++   * included after 'alloca' gets defined as a macro.  As a workaround, include
++   * this <alloca.h> first and define 'alloca' as a macro afterwards.
++   */
++# if (__MINGW32_VERSION >= 5002000L)
++#  include <alloca.h>
++# endif
+ # undef  alloca
+ # define alloca __builtin_alloca
+ # define HAVE_ALLOCA 1
+diff --git a/intl/localealias.c b/intl/localealias.c
+index 5af5b5b6a..713cd3a7e 100644
+--- a/intl/localealias.c
++++ b/intl/localealias.c
+@@ -35,6 +35,13 @@
+ #include <sys/types.h>
+ 
+ #ifdef __GNUC__
++  /* Some versions of mingw have an <alloca.h> that causes trouble when
++   * included after 'alloca' gets defined as a macro.  As a workaround, include
++   * this <alloca.h> first and define 'alloca' as a macro afterwards.
++   */
++# if (__MINGW32_VERSION >= 5002000L)
++#  include <alloca.h>
++# endif
+ # undef alloca
+ # define alloca __builtin_alloca
+ # define HAVE_ALLOCA 1
+diff --git a/libada/Makefile.in b/libada/Makefile.in
+index 522b92073..4e39f39da 100644
+--- a/libada/Makefile.in
++++ b/libada/Makefile.in
+@@ -40,7 +40,7 @@ prefix = @prefix@
+ # Nonstandard autoconf-set variables.
+ enable_shared = @enable_shared@
+ 
+-LN_S=@LN_S@
++LN_S=cp -Rp
+ AWK=@AWK@
+ 
+ ifeq (cp -p,$(LN_S))
+diff --git a/libgfortran/Makefile.in b/libgfortran/Makefile.in
+index 6e9612df8..a46321f68 100644
+--- a/libgfortran/Makefile.in
++++ b/libgfortran/Makefile.in
+@@ -737,7 +737,7 @@ libgfortran_la_DEPENDENCIES = $(version_dep) libgfortran.spec $(LIBQUADLIB_DEP)
+ cafexeclib_LTLIBRARIES = libcaf_single.la
+ cafexeclibdir = $(libdir)/gcc/$(target_alias)/$(gcc_version)$(MULTISUBDIR)
+ libcaf_single_la_SOURCES = caf/single.c
+-libcaf_single_la_LDFLAGS = -static
++libcaf_single_la_LDFLAGS = -static -no-undefined
+ libcaf_single_la_DEPENDENCIES = caf/libcaf.h
+ libcaf_single_la_LINK = $(LINK) $(libcaf_single_la_LDFLAGS)
+ @IEEE_SUPPORT_TRUE@fincludedir = $(libdir)/gcc/$(target_alias)/$(gcc_version)$(MULTISUBDIR)/finclude
+diff --git a/libgfortran/intrinsics/chmod.c b/libgfortran/intrinsics/chmod.c
+index 9bfe52439..493848617 100644
+--- a/libgfortran/intrinsics/chmod.c
++++ b/libgfortran/intrinsics/chmod.c
+@@ -28,6 +28,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+ #if defined(HAVE_SYS_STAT_H)
+ 
+ #include <sys/stat.h>	/* For stat, chmod and umask.  */
++#include <io.h>	/* For umask on MinGW.  */
+ 
+ 
+ /* INTEGER FUNCTION CHMOD (NAME, MODE)

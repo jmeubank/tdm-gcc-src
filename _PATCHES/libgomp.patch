@@ -1,0 +1,82 @@
+Allow libgomp to interoperate with user-generated pthreads
+
+From: J.M. Eubank <john@thesnappy.net>
+
+# HG changeset patch
+# Parent cd089841e47ec807161959bb7bfd75bb666422a7
+# Parent  439088b611783dbbea2e4640bba9962461c6e356
+---
+ 0 files changed
+
+diff --git a/libgomp/libgomp.h b/libgomp/libgomp.h
+index afea65944..07b0b8061 100644
+--- a/libgomp/libgomp.h
++++ b/libgomp/libgomp.h
+@@ -700,9 +700,20 @@ static inline struct gomp_thread *gomp_thread (void)
+ }
+ #else
+ extern pthread_key_t gomp_tls_key;
++extern void initialize_team (void);
++extern void gomp_fatal (const char *, ...)
++	__attribute__((noreturn, format (printf, 1, 2)));
+ static inline struct gomp_thread *gomp_thread (void)
+ {
+-  return pthread_getspecific (gomp_tls_key);
++  struct gomp_thread* GompThread = pthread_getspecific (gomp_tls_key);
++  if (!GompThread) {
++    initialize_team();
++    GompThread = pthread_getspecific (gomp_tls_key);
++    if (!GompThread) {
++      gomp_fatal("Uncorrectable NULL gomp_thread()");
++    }
++  }
++  return GompThread;
+ }
+ #endif
+ 
+diff --git a/libgomp/team.c b/libgomp/team.c
+index c422da370..8b7c60930 100644
+--- a/libgomp/team.c
++++ b/libgomp/team.c
+@@ -295,6 +295,9 @@ gomp_free_thread (void *arg __attribute__((unused)))
+       gomp_end_task ();
+       free (task);
+     }
++#ifndef HAVE_TLS
++  free(pthread_getspecific (gomp_tls_key));
++#endif
+ }
+ 
+ /* Launch a team.  */
+@@ -995,18 +998,25 @@ gomp_team_end (void)
+ 
+ /* Constructors for this file.  */
+ 
+-static void __attribute__((constructor))
++static short KeysCreated = 0;
++
++void __attribute__((constructor))
+ initialize_team (void)
+ {
+ #if !defined HAVE_TLS && !defined USE_EMUTLS
+-  static struct gomp_thread initial_thread_tls_data;
++  struct gomp_thread *Ptr_initial_thread_tls_data;
++  Ptr_initial_thread_tls_data = 
++    (struct gomp_thread*) calloc(1,sizeof(struct gomp_thread));
+ 
+-  pthread_key_create (&gomp_tls_key, NULL);
+-  pthread_setspecific (gomp_tls_key, &initial_thread_tls_data);
++  if (!KeysCreated) pthread_key_create (&gomp_tls_key, NULL);
++  pthread_setspecific (gomp_tls_key, Ptr_initial_thread_tls_data);
+ #endif
+ 
+-  if (pthread_key_create (&gomp_thread_destructor, gomp_free_thread) != 0)
+-    gomp_fatal ("could not create thread pool destructor.");
++  if (!KeysCreated && 
++      pthread_key_create (&gomp_thread_destructor, gomp_free_thread) != 0)
++      gomp_fatal ("could not create thread pool destructor.");
++
++  KeysCreated = 1;
+ }
+ 
+ static void __attribute__((destructor))
