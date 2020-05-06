@@ -69,6 +69,13 @@
 # endif
 #endif
 
+#include <stdio.h>
+#ifdef __MINGW_PRINTF_FORMAT
+#define PRINTF_FORMAT __MINGW_PRINTF_FORMAT
+#else
+#define PRINTF_FORMAT printf
+#endif
+
 #ifdef HAVE_ATTRIBUTE_VISIBILITY
 # pragma GCC visibility push(hidden)
 #endif
@@ -173,7 +180,7 @@ team_free (void *ptr)
 
 extern void gomp_vdebug (int, const char *, va_list);
 extern void gomp_debug (int, const char *, ...)
-	__attribute__ ((format (printf, 2, 3)));
+	__attribute__ ((format (PRINTF_FORMAT, 2, 3)));
 #define gomp_vdebug(KIND, FMT, VALIST) \
   do { \
     if (__builtin_expect (gomp_debug_var, 0)) \
@@ -186,11 +193,11 @@ extern void gomp_debug (int, const char *, ...)
   } while (0)
 extern void gomp_verror (const char *, va_list);
 extern void gomp_error (const char *, ...)
-	__attribute__ ((format (printf, 1, 2)));
+	__attribute__ ((format (PRINTF_FORMAT, 1, 2)));
 extern void gomp_vfatal (const char *, va_list)
 	__attribute__ ((noreturn));
 extern void gomp_fatal (const char *, ...)
-	__attribute__ ((noreturn, format (printf, 1, 2)));
+	__attribute__ ((noreturn, format (PRINTF_FORMAT, 1, 2)));
 
 struct gomp_task;
 struct gomp_taskgroup;
