@@ -79,6 +79,7 @@ jit: $(LIBGCCJIT_FILENAME) \
 	$(LIBGCCJIT_SYMLINK) \
 	$(LIBGCCJIT_LINKER_NAME_SYMLINK) \
 	$(FULL_DRIVER_NAME)
+endif
 
 # Tell GNU make to ignore these if they exist.
 .PHONY: jit
@@ -94,6 +95,10 @@ jit_OBJS = attribs.o \
 	jit/jit-builtins.o \
 	jit/jit-spec.o \
 	gcc.o
+
+ifneq (,$(findstring mingw,$(target)))
+jit_OBJS += jit/jit-w32.o
+endif
 
 # Use strict warnings for this front end.
 jit-warn = $(STRICT_WARN)
@@ -117,14 +122,16 @@ $(LIBGCCJIT_FILENAME): $(jit_OBJS) \
 	     $(jit_OBJS) libbackend.a libcommon-target.a libcommon.a \
 	     $(CPPLIB) $(LIBDECNUMBER) $(EXTRA_GCC_LIBS) $(LIBS) $(BACKENDLIBS) \
 	     $(EXTRA_GCC_OBJS) \
-	     $(LIBGCCJIT_VERSION_SCRIPT_OPTION) \
-	     $(LIBGCCJIT_SONAME_OPTION)
+	     $(LIBGCCJIT_EXTRA_OPTS)
 
+# Create symlinks when not building for Windows
+ifeq (,$(findstring mingw,$(target)))
 $(LIBGCCJIT_SONAME_SYMLINK): $(LIBGCCJIT_FILENAME)
 	ln -sf $(LIBGCCJIT_FILENAME) $(LIBGCCJIT_SONAME_SYMLINK)
 
 $(LIBGCCJIT_LINKER_NAME_SYMLINK): $(LIBGCCJIT_SONAME_SYMLINK)
 	ln -sf $(LIBGCCJIT_SONAME_SYMLINK) $(LIBGCCJIT_LINKER_NAME_SYMLINK)
+endif
 
 #
 # Build hooks:
@@ -307,17 +314,18 @@ jit.install-common: installdirs jit.install-headers
 	  $(DESTDIR)$(libdir)/$(LIBGCCJIT_IMPORT_LIB)
 # Install DLL file
 	$(INSTALL_PROGRAM) $(LIBGCCJIT_FILENAME) \
-	  $(DESTDIR)/$(libdir)/$(LIBGCCJIT_FILENAME)
+	  $(DESTDIR)$(bindir)/$(LIBGCCJIT_FILENAME)
+else
+jit.install-common: installdirs jit.install-headers
+	$(INSTALL_PROGRAM) $(LIBGCCJIT_FILENAME) \
+	  $(DESTDIR)$(libdir)/$(LIBGCCJIT_FILENAME)
 	ln -sf \
 	  $(LIBGCCJIT_FILENAME) \
-	  $(DESTDIR)/$(libdir)/$(LIBGCCJIT_SONAME_SYMLINK)
+	  $(DESTDIR)$(libdir)/$(LIBGCCJIT_SONAME_SYMLINK)
 	ln -sf \
 	  $(LIBGCCJIT_SONAME_SYMLINK)\
-	  $(DESTDIR)/$(libdir)/$(LIBGCCJIT_LINKER_NAME_SYMLINK)
-	$(INSTALL_DATA) $(srcdir)/jit/libgccjit.h \
-	  $(DESTDIR)/$(includedir)/libgccjit.h
-	$(INSTALL_DATA) $(srcdir)/jit/libgccjit++.h \
-	  $(DESTDIR)/$(includedir)/libgccjit++.h
+	  $(DESTDIR)$(libdir)/$(LIBGCCJIT_LINKER_NAME_SYMLINK)
+endif
 
 jit.install-man:
 

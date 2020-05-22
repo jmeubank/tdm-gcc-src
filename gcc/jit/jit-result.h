@@ -21,6 +21,13 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef JIT_RESULT_H
 #define JIT_RESULT_H
 
+#if defined(__MINGW64__)
+#include <minwindef.h>
+#elif defined(__MINGW32__)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
 namespace gcc {
 
 namespace jit {
@@ -29,7 +36,13 @@ namespace jit {
 class result : public log_user
 {
 public:
-  result(logger *logger, void *dso_handle, tempdir *tempdir_);
+#ifdef _WIN32
+  typedef HMODULE handle;
+#else
+  typedef void* handle;
+#endif
+
+  result(logger *logger, handle dso_handle, tempdir *tempdir_);
 
   virtual ~result();
 
@@ -40,7 +53,7 @@ public:
   get_global (const char *name);
 
 private:
-  void *m_dso_handle;
+  handle m_dso_handle;
   tempdir *m_tempdir;
 };
 
