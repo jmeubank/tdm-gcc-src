@@ -36,6 +36,7 @@
 #include "unwind.h"
 #include <bits/atomic_word.h>
 #include <cxxabi.h>
+#include "eh_shmem3.h"
 
 #ifdef _GLIBCXX_HAVE_SYS_SDT_H
 #include <sys/sdt.h>
@@ -195,8 +196,10 @@ extern void __unexpected(std::unexpected_handler)
   __attribute__((__noreturn__));
 
 // The current installed user handlers.
-extern std::terminate_handler __terminate_handler;
-extern std::unexpected_handler __unexpected_handler;
+__SHMEM_DECLARE(std::terminate_handler, eh_term_handler__terminate_handler)
+#define __terminate_handler __SHMEM_GET(std::terminate_handler, eh_term_handler__terminate_handler)
+__SHMEM_DECLARE(std::unexpected_handler, eh_unex_handler__unexpected_handler)
+#define __unexpected_handler __SHMEM_GET(std::unexpected_handler, eh_unex_handler__unexpected_handler)
 
 // These are explicitly GNU C++ specific.
 

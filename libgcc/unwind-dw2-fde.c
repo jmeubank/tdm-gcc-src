@@ -35,6 +35,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #include "unwind-pe.h"
 #include "unwind-dw2-fde.h"
 #include "gthr.h"
+#include "eh_shmem3.h"
 #else
 #if (defined(__GTHREAD_MUTEX_INIT) || defined(__GTHREAD_MUTEX_INIT_FUNCTION)) \
     && defined(__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4)
@@ -46,18 +47,23 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    but not yet categorized in any way.  The seen_objects list has had
    its pc_begin and count fields initialized at minimum, and is sorted
    by decreasing value of pc_begin.  */
-static struct object *unseen_objects;
-static struct object *seen_objects;
+__SHMEM_DEFINE(struct object *, unwind_dw2_fde_unseen_objects)
+#define unseen_objects __SHMEM_GET(struct object *, unwind_dw2_fde_unseen_objects)
+__SHMEM_DEFINE(struct object *, unwind_dw2_fde_seen_objects)
+#define seen_objects __SHMEM_GET(struct object *, unwind_dw2_fde_seen_objects)
 #ifdef ATOMIC_FDE_FAST_PATH
-static int any_objects_registered;
+__SHMEM_DEFINE(int, unwind_dw2_fde_any_objects_registered)
+#define any_objects_registered __SHMEM_GET(int, unwind_dw2_fde_any_objects_registered)
 #endif
 
 #ifdef __GTHREAD_MUTEX_INIT
-static __gthread_mutex_t object_mutex = __GTHREAD_MUTEX_INIT;
+__SHMEM_DEFINE_INIT(__gthread_mutex_t, unwind_dw2_fde_object_mutex, __GTHREAD_MUTEX_INIT)
+#define object_mutex __SHMEM_GET(__gthread_mutex_t, unwind_dw2_fde_object_mutex)
 #define init_object_mutex_once()
 #else
 #ifdef __GTHREAD_MUTEX_INIT_FUNCTION
-static __gthread_mutex_t object_mutex;
+__SHMEM_DEFINE(__gthread_mutex_t, unwind_dw2_fde_object_mutex)
+#define object_mutex __SHMEM_GET(__gthread_mutex_t, unwind_dw2_fde_object_mutex)
 
 static void
 init_object_mutex (void)
@@ -65,17 +71,18 @@ init_object_mutex (void)
   __GTHREAD_MUTEX_INIT_FUNCTION (&object_mutex);
 }
 
+__SHMEM_DEFINE_INIT(__gthread_once_t, unwind_dw2_fde_dw2_once, __GTHREAD_ONCE_INIT)
 static void
 init_object_mutex_once (void)
 {
-  static __gthread_once_t once = __GTHREAD_ONCE_INIT;
-  __gthread_once (&once, init_object_mutex);
+  __gthread_once (&__SHMEM_GET(__gthread_once_t, unwind_dw2_fde_dw2_once), init_object_mutex);
 }
 #else
 /* ???  Several targets include this file with stubbing parts of gthr.h
    and expect no locking to be done.  */
 #define init_object_mutex_once()
-static __gthread_mutex_t object_mutex;
+__SHMEM_DEFINE(__gthread_mutex_t, unwind_dw2_fde_object_mutex)
+#define object_mutex __SHMEM_GET(__gthread_mutex_t, unwind_dw2_fde_object_mutex)
 #endif
 #endif
 
@@ -241,7 +248,9 @@ __deregister_frame_info_bases (const void *begin)
 
  out:
   __gthread_mutex_unlock (&object_mutex);
+#ifndef _WIN32
   gcc_assert (ob);
+#endif
   return (void *) ob;
 }
 
@@ -467,11 +476,13 @@ fde_insert (struct fde_accumulator *accu, const fde *this_fde)
    chain to determine what should be placed in the ERRATIC array, and
    what is the linear sequence.  This overlay is safe from aliasing.  */
 
+__SHMEM_DEFINE(const fde *, unwind_dw2_fde_marker)
+
 static inline void
 fde_split (struct object *ob, fde_compare_t fde_compare,
 	   struct fde_vector *linear, struct fde_vector *erratic)
 {
-  static const fde *marker;
+  #define marker __SHMEM_GET(const fde *, unwind_dw2_fde_marker)
   size_t count = linear->count;
   const fde *const *chain_end = &marker;
   size_t i, j, k;
@@ -506,6 +517,7 @@ fde_split (struct object *ob, fde_compare_t fde_compare,
       erratic->array[k++] = linear->array[i];
   linear->count = j;
   erratic->count = k;
+  #undef marker
 }
 
 #define SWAP(x,y) do { const fde * tmp = x; x = y; y = tmp; } while (0)

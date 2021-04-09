@@ -36,6 +36,7 @@
 #include "unwind-dw2-fde.h"
 #include "gthr.h"
 #include "unwind-dw2.h"
+#include "eh_shmem3.h"
 
 #ifdef HAVE_SYS_SDT_H
 #include <sys/sdt.h>
@@ -148,7 +149,8 @@ struct _Unwind_Context
 };
 
 /* Byte size of every register managed by these routines.  */
-static unsigned char dwarf_reg_size_table[__LIBGCC_DWARF_FRAME_REGISTERS__+1];
+__SHMEM_DEFINE_ARRAY(unsigned char, unwind_dw2_dwarf_reg_size_table, __LIBGCC_DWARF_FRAME_REGISTERS__+1)
+#define dwarf_reg_size_table __SHMEM_GET_ARRAY(unsigned char, unwind_dw2_dwarf_reg_size_table)
 
 
 /* Read unaligned data from the instruction buffer.  */
@@ -231,7 +233,7 @@ _Unwind_GetGR (struct _Unwind_Context *context, int regno)
 #endif
 
   index = DWARF_REG_TO_UNWIND_COLUMN (regno);
-  gcc_assert (index < (int) sizeof(dwarf_reg_size_table));
+  gcc_assert (index < (int) (sizeof(unsigned char) * (DWARF_FRAME_REGISTERS + 1)));
   size = dwarf_reg_size_table[index];
   val = context->reg[index];
 
@@ -279,7 +281,7 @@ _Unwind_SetGR (struct _Unwind_Context *context, int index, _Unwind_Word val)
   void *ptr;
 
   index = DWARF_REG_TO_UNWIND_COLUMN (index);
-  gcc_assert (index < (int) sizeof(dwarf_reg_size_table));
+  gcc_assert (index < (int) (sizeof(unsigned char) * (DWARF_FRAME_REGISTERS + 1)));
   size = dwarf_reg_size_table[index];
 
   if (_Unwind_IsExtendedContext (context) && context->by_value[index])
@@ -328,7 +330,7 @@ _Unwind_SetGRValue (struct _Unwind_Context *context, int index,
 		    _Unwind_Word val)
 {
   index = DWARF_REG_TO_UNWIND_COLUMN (index);
-  gcc_assert (index < (int) sizeof(dwarf_reg_size_table));
+  gcc_assert (index < (int) (sizeof(unsigned char) * (DWARF_FRAME_REGISTERS + 1)));
   /* Return column size may be smaller than _Unwind_Context_Reg_Val.  */
   gcc_assert (dwarf_reg_size_table[index] <= sizeof (_Unwind_Context_Reg_Val));
 
@@ -1575,6 +1577,8 @@ init_dwarf_reg_size_table (void)
   __builtin_init_dwarf_reg_size_table (dwarf_reg_size_table);
 }
 
+__SHMEM_DEFINE_INIT(__gthread_once_t, unwind_dw2_once_regsizes, __GTHREAD_ONCE_INIT)
+
 static void __attribute__((noinline))
 uw_init_context_1 (struct _Unwind_Context *context,
 		   void *outer_cfa, void *outer_ra)
@@ -1594,8 +1598,7 @@ uw_init_context_1 (struct _Unwind_Context *context,
 
 #if __GTHREADS
   {
-    static __gthread_once_t once_regsizes = __GTHREAD_ONCE_INIT;
-    if (__gthread_once (&once_regsizes, init_dwarf_reg_size_table) != 0
+    if (__gthread_once (&__SHMEM_GET(__gthread_once_t, unwind_dw2_once_regsizes), init_dwarf_reg_size_table) != 0
 	&& dwarf_reg_size_table[0] == 0)
       init_dwarf_reg_size_table ();
   }

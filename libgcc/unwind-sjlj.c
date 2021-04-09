@@ -29,6 +29,7 @@
 #include "libgcc_tm.h"
 #include "unwind.h"
 #include "gthr.h"
+#include "eh_shmem3.h"
 
 #ifdef __USING_SJLJ_EXCEPTIONS__
 
@@ -95,11 +96,14 @@ typedef struct
 /* Manage the chain of registered function contexts.  */
 
 /* Single threaded fallback chain.  */
-static struct SjLj_Function_Context *fc_static;
+__SHMEM_DEFINE(struct SjLj_Function_Context *, unwind_sjlj_fc_static)
+#define fc_static __SHMEM_GET(struct SjLj_Function_Context *, unwind_sjlj_fc_static)
 
 #if __GTHREADS
-static __gthread_key_t fc_key;
-static int use_fc_key = -1;
+__SHMEM_DEFINE(__gthread_key_t, unwind_sjlj_fc_key)
+#define fc_key __SHMEM_GET(__gthread_key_t, unwind_sjlj_fc_key)
+__SHMEM_DEFINE_INIT(int, unwind_sjlj_use_fc_key, -1)
+#define use_fc_key __SHMEM_GET(int, unwind_sjlj_use_fc_key)
 
 static void
 fc_key_init (void)
@@ -107,11 +111,12 @@ fc_key_init (void)
   use_fc_key = __gthread_key_create (&fc_key, 0) == 0;
 }
 
+__SHMEM_DEFINE_INIT(__gthread_once_t, unwind_sjlj_once, __GTHREAD_ONCE_INIT)
+
 static void
 fc_key_init_once (void)
 {
-  static __gthread_once_t once = __GTHREAD_ONCE_INIT;
-  if (__gthread_once (&once, fc_key_init) != 0 || use_fc_key < 0)
+  if (__gthread_once (&__SHMEM_GET(__gthread_once_t, unwind_sjlj_once), fc_key_init) != 0 || use_fc_key < 0)
     use_fc_key = 0;
 }
 #endif

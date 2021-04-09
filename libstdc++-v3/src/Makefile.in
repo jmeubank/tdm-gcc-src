@@ -500,18 +500,43 @@ cxx11_sources = \
 
 libstdc___la_SOURCES = $(cxx98_sources) $(cxx11_sources)
 libstdc___la_LIBADD = \
-	$(GLIBCXX_LIBS) \
+	$(GLIBCXX_LIBS)
+libstdc___la_LIBADD_STATIC = \
 	$(top_builddir)/libsupc++/libsupc++convenience.la \
 	$(top_builddir)/src/c++98/libc++98convenience.la \
 	$(top_builddir)/src/c++11/libc++11convenience.la \
 	$(top_builddir)/src/c++17/libc++17convenience.la
+libstdc___la_LIBADD_SHARED = \
+	$(top_builddir)/libsupc++-shared/libsupc++convenience.la \
+	$(top_builddir)/src/c++98-shared/libc++98convenience.la \
+	$(top_builddir)/src/c++11-shared/libc++11convenience.la \
+	$(top_builddir)/src/c++17-shared/libc++17convenience.la
 
 libstdc___la_DEPENDENCIES = \
-	${version_dep} \
+	${version_dep}
+libstdc___la_DEPENDENCIES_STATIC = \
 	$(top_builddir)/libsupc++/libsupc++convenience.la \
 	$(top_builddir)/src/c++98/libc++98convenience.la \
 	$(top_builddir)/src/c++11/libc++11convenience.la \
 	$(top_builddir)/src/c++17/libc++17convenience.la
+libstdc___la_DEPENDENCIES_SHARED = \
+	$(top_builddir)/libsupc++-shared/libsupc++convenience.la \
+	$(top_builddir)/src/c++98-shared/libc++98convenience.la \
+	$(top_builddir)/src/c++11-shared/libc++11convenience.la \
+	$(top_builddir)/src/c++17-shared/libc++17convenience.la
+
+$(top_builddir)/libsupc++-shared/libsupc++convenience.la: $(top_builddir)/libsupc++/libsupc++convenience.la
+	mkdir -p -- "$(top_builddir)/libsupc++-shared"
+	$(MAKE) -f $(top_builddir)/libsupc++/Makefile -C $(top_builddir)/libsupc++-shared CFLAGS="$(CFLAGS) -DSHARED" CXXFLAGS="$(CXXFLAGS) -DSHARED"
+$(top_builddir)/src/c++98-shared/libc++98convenience.la: $(top_builddir)/src/c++98/libc++98convenience.la
+	mkdir -p -- "$(top_builddir)/src/c++98-shared"
+	$(MAKE) -f ../$(top_builddir)/src/c++98/Makefile -C $(top_builddir)/src/c++98-shared CFLAGS="$(CFLAGS) -DSHARED" CXXFLAGS="$(CXXFLAGS) -DSHARED"
+$(top_builddir)/src/c++11-shared/libc++11convenience.la: $(top_builddir)/src/c++11/libc++11convenience.la
+	mkdir -p -- "$(top_builddir)/src/c++11-shared"
+	$(MAKE) -f ../$(top_builddir)/src/c++11/Makefile -C $(top_builddir)/src/c++11-shared CFLAGS="$(CFLAGS) -DSHARED" CXXFLAGS="$(CXXFLAGS) -DSHARED"
+$(top_builddir)/src/c++17-shared/libc++17convenience.la: $(top_builddir)/src/c++17/libc++17convenience.la
+	mkdir -p -- "$(top_builddir)/src/c++17-shared"
+	$(MAKE) -f ../$(top_builddir)/src/c++17/Makefile -C $(top_builddir)/src/c++17-shared CFLAGS="$(CFLAGS) -DSHARED" CXXFLAGS="$(CXXFLAGS) -DSHARED"
 
 libstdc___la_LDFLAGS = \
 	-version-info $(libtool_VERSION) ${version_arg} -lm
@@ -694,8 +719,13 @@ clean-toolexeclibLTLIBRARIES:
 	  rm -f $${locs}; \
 	}
 
-libstdc++.la: $(libstdc___la_OBJECTS) $(libstdc___la_DEPENDENCIES) $(EXTRA_libstdc___la_DEPENDENCIES) 
-	$(AM_V_GEN)$(libstdc___la_LINK) $(am_libstdc___la_rpath) $(libstdc___la_OBJECTS) $(libstdc___la_LIBADD) $(LIBS)
+libstdc++.la: $(libstdc___la_OBJECTS) $(libstdc___la_DEPENDENCIES) $(EXTRA_libstdc___la_DEPENDENCIES) $(libstdc___la_DEPENDENCIES_SHARED) $(libstdc___la_DEPENDENCIES_STATIC)
+	$(LIBTOOL) --tag CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link \
+	    $(CXX) $(OPT_LDFLAGS) $(SECTION_LDFLAGS) -static $(AM_CXXFLAGS) $(LTLDFLAGS) -o $@ \
+	    $(libstdc___la_LDFLAGS) -rpath $(toolexeclibdir) $(libstdc___la_OBJECTS) $(libstdc___la_LIBADD) $(libstdc___la_LIBADD_STATIC) $(LIBS)
+	cp .libs/libstdc++.a libstdc++_noshared.a
+	$(AM_V_GEN)$(libstdc___la_LINK) $(am_libstdc___la_rpath) $(libstdc___la_OBJECTS) $(libstdc___la_LIBADD) $(libstdc___la_LIBADD_SHARED) $(LIBS)
+	cp libstdc++_noshared.a .libs/libstdc++.a
 
 libvtv.la: $(libvtv_la_OBJECTS) $(libvtv_la_DEPENDENCIES) $(EXTRA_libvtv_la_DEPENDENCIES) 
 	$(AM_V_GEN)$(libvtv_la_LINK) $(am_libvtv_la_rpath) $(libvtv_la_OBJECTS) $(libvtv_la_LIBADD) $(LIBS)
@@ -1076,7 +1106,7 @@ build-debug: stamp-debug
 	  mv Makefile Makefile.tmp; \
 	  sed -e 's,all-local: all-once,all-local:,' \
 	      -e 's,install-data-local: install-data-once,install-data-local:,' \
-	      -e '/vpath/!s,src/c,src/debug/c,' \
+	      -e '/vpath/!s,src/c,src/debug/c,g' \
 	  < Makefile.tmp > Makefile ; \
 	  rm -f Makefile.tmp ; \
 	  $(MAKE) CXXFLAGS='$(DEBUG_FLAGS)' \

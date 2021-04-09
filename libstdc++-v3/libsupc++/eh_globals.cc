@@ -28,6 +28,7 @@
 #include "cxxabi.h"
 #include "unwind-cxx.h"
 #include "bits/gthr.h"
+#include "eh_shmem3.h"
 
 #if _GLIBCXX_HOSTED
 using std::free;
@@ -41,7 +42,7 @@ extern "C" void free(void *);
 
 using namespace __cxxabiv1;
 
-#if _GLIBCXX_HAVE_TLS
+#if _GLIBCXX_HAVE_TLS && !defined(__MINGW32__)
 
 namespace
 {
@@ -65,7 +66,8 @@ __cxxabiv1::__cxa_get_globals() _GLIBCXX_NOTHROW
 #else
 
 // Single-threaded fallback buffer.
-static __cxa_eh_globals eh_globals;
+__SHMEM_DEFINE(__cxa_eh_globals, eh_globals_eh_globals)
+#define eh_globals __SHMEM_GET(__cxa_eh_globals, eh_globals_eh_globals)
 
 #if __GTHREADS
 
@@ -104,9 +106,18 @@ struct __eh_globals_init
       __gthread_key_delete(_M_key);
     _M_init = false;
   }
+
+  __eh_globals_init& operator = (__eh_globals_init& c)
+  {
+    _M_key = c._M_key;
+    _M_init = c._M_init;
+    c._M_init = false;
+    return *this;
+  }
 };
 
-static __eh_globals_init init;
+__SHMEM_DEFINE(__eh_globals_init, eh_globals_init)
+#define init __SHMEM_GET(__eh_globals_init, eh_globals_init)
 
 extern "C" __cxa_eh_globals*
 __cxxabiv1::__cxa_get_globals_fast() _GLIBCXX_NOTHROW

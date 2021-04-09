@@ -25,7 +25,11 @@
 #include <bits/c++config.h>
 #include "unwind-cxx.h"
 #include "eh_term_handler.h"
+#include "eh_shmem3.h"
 
 /* The current installed user handler.  */
-std::terminate_handler __cxxabiv1::__terminate_handler =
-	_GLIBCXX_DEFAULT_TERM_HANDLER;
+namespace __cxxabiv1
+{
+	__SHMEM_DEFINE_INIT(std::terminate_handler, eh_term_handler__terminate_handler,
+		_GLIBCXX_DEFAULT_TERM_HANDLER)
+}

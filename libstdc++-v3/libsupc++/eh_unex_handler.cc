@@ -23,7 +23,11 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "unwind-cxx.h"
+#include "eh_shmem3.h"
 
 /* The current installed user handler.  */
-std::unexpected_handler __cxxabiv1::__unexpected_handler = std::terminate;
+namespace __cxxabiv1
+{
+  __SHMEM_DEFINE_INIT(std::unexpected_handler, eh_unex_handler__unexpected_handler, std::terminate)
+}
 
