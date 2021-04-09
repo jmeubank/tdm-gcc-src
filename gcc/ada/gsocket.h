@@ -80,9 +80,19 @@
 #define FD_SETSIZE 1024
 
 #ifdef __MINGW32__
+
+/* winsock2.h allows WSAPoll related definitions only when
+ * _WIN32_WINNT >= 0x0600 */
+#  if !defined(_WIN32_WINNT) || _WIN32_WINNT < 0x0600
+#define _WIN32_WINNT 0x0600
+#  endif
+
+#include "mingw32.h"
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#include <versionhelpers.h>
+#  ifdef _WIN64
+#    include <versionhelpers.h>
+#  endif
 
 #undef  EACCES
 #define EACCES          WSAEACCES
@@ -185,7 +195,9 @@
 #endif
 
 #include <limits.h>
-#include <errno.h>
+#ifndef __MINGW32__
+#   include <errno.h>
+#endif
 #include <stddef.h>
 
 #if defined (__vxworks) && ! defined (__RTP__)

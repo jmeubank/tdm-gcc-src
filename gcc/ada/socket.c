@@ -803,8 +803,14 @@ int __gnat_minus_500ms() {
 #if defined (_WIN32)
   // Windows Server 2019 and Windows 8.0 do not need 500 millisecond socket
   // timeout correction.
-  return !(IsWindows8OrGreater() && !IsWindowsServer()
-           || IsWindowsVersionOrGreater(10, 0, 17763));
+  OSVERSIONINFOEX osvi;
+  ZeroMemory(&osvi, sizeof(osvi));
+  osvi.dwOSVersionInfoSize = sizeof(osvi);
+  GetVersionEx(&osvi);
+  return !((osvi.dwMajorVersion >= _WIN32_WINNT_WIN8 && osvi.wProductType != VER_NT_WORKSTATION)
+    || osvi.dwMajorVersion > 10
+    || (osvi.dwMajorVersion == 10 && osvi.dwMinorVersion > 0)
+    || (osvi.dwMajorVersion == 10 && osvi.dwMinorVersion == 0 && osvi.dwBuildNumber >= 17763));
 #else
    return 0;
 #endif

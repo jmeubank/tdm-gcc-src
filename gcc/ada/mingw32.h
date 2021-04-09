@@ -60,6 +60,8 @@
 #define _X86INTRIN_H_INCLUDED
 #define _EMMINTRIN_H_INCLUDED
 #endif
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #include <windows.h>
 
 #ifdef __cplusplus
