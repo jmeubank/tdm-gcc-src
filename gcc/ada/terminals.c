@@ -152,7 +152,10 @@ __gnat_setup_winsize (void *desc ATTRIBUTE_UNUSED,
 #include <stdlib.h>
 
 #include <windows.h>
-#include <winternl.h>
+#include <io.h>
+#ifdef _WIN64
+#  include <winternl.h>
+#endif
 
 #define MAXPATHLEN 1024
 

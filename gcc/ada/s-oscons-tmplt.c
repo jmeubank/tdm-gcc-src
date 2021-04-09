@@ -1712,7 +1712,7 @@ CND(SIZEOF_sockaddr_in6, "struct sockaddr_in6")
  **/
 #if defined(__MINGW32__)
 struct sockaddr_un {
-  ADDRESS_FAMILY sun_family;    /* AF_UNIX */
+  u_short sun_family;    /* AF_UNIX */
   char           sun_path[108]; /* Pathname */
 };
 #endif

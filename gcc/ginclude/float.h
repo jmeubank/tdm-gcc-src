@@ -539,4 +539,8 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 #endif /* __DEC32_MANT_DIG__ */
 
+#if defined (__MINGW32__) && ! defined (_MINGW_FLOAT_H_)
+# include_next <float.h>
+#endif
+
 #endif /* _FLOAT_H___ */
