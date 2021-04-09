@@ -51,7 +51,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 # define ASM_FORMAT_PRIVATE_NAME(OUTPUT, NAME, LABELNO) \
   do { const char *const name_ = (NAME); \
        char *const output_ = (OUTPUT) = \
-	 (char *) alloca (strlen (name_) + 32); \
+	 (char *) alloca (strlen (name_) + 35); \
        sprintf (output_, ASM_PN_FORMAT, name_, (unsigned long)(LABELNO)); \
   } while (0)
 #endif
