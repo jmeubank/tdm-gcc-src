@@ -136,8 +136,8 @@ along with GCC; see the file COPYING3.  If not see
   "%{!shared:%{!mdll:%{!m64:--large-address-aware}}}"
 #endif
 
-#define LINK_SPEC "%{mwindows:--subsystem windows} \
-  %{mconsole:--subsystem console} \
+#define LINK_SPEC "--exclude-libs=libpthread.a %{!shared:%{" SPEC_PTHREAD1 ":--undefined=__xl_f}} \
+  %{mwindows:--subsystem windows} %{mconsole:--subsystem console} \
   %{shared: %{mdll: %eshared and mdll are not compatible}} \
   %{shared: --shared} %{mdll:--dll} \
   %{static:-Bstatic} %{!static:-Bdynamic} \
@@ -162,10 +162,11 @@ along with GCC; see the file COPYING3.  If not see
 #else
 #define SHARED_LIBGCC_SPEC " -lgcc "
 #endif
+#define LIBGCC_PTHREAD_SPEC SHARED_LIBGCC_SPEC "%{" SPEC_PTHREAD1 ":-lpthread}" SHARED_LIBGCC_SPEC "-lkernel32 "
 #undef REAL_LIBGCC_SPEC
 #define REAL_LIBGCC_SPEC \
   "%{mthreads:-lmingwthrd} -lmingw32 \
-   " SHARED_LIBGCC_SPEC " \
+   " LIBGCC_PTHREAD_SPEC " \
    -lmoldname -lmingwex %{!mcrtdll=*:-lmsvcrt} %{mcrtdll=*:-l%*} -lkernel32"
 
 #undef STARTFILE_SPEC
