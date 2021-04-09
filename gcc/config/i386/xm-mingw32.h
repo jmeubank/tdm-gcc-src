@@ -30,10 +30,23 @@ along with GCC; see the file COPYING3.  If not see
 #define HOST_LACKS_INODE_NUMBERS
 
 #ifdef __MINGW32__
+/* FIXME: The mingw-w64 crew want us to force a definition of the
+ * private __USE_MINGW_ANSI_STDIO feature, but it isn't supposed to
+ * be defined directly, (as it is here); furthermore, no such direct
+ * definition is required, since the feature is implicitly enabled
+ * anyway, when either _GNU_SOURCE or _XOPEN_SOURCE is defined.
+ */
+#if !defined _GNU_SOURCE && !defined _XOPEN_SOURCE
+/* If neither of these implicit enabling features has been selected,
+ * we force the explicit definition, recognizing that this may raise
+ * a "deprecated usage" warning on MinGW.org implementations.
+ */
 #undef __USE_MINGW_ANSI_STDIO
 #define __USE_MINGW_ANSI_STDIO 1
+#endif
 #else
-/* MSVCRT does not support the "ll" format specifier for printing
-   "long long" values.  Instead, we use "I64".  */
+/* MSVCRT does not support the "ll" format modifier for printing
+ * "long long" values.  Instead, we must use "I64".
+ */
 #define HOST_LONG_LONG_FORMAT "I64"
 #endif
