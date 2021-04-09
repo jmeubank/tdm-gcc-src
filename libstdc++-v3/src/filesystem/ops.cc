@@ -184,7 +184,7 @@ fs::canonical(const path& p, const path& base, error_code& ec)
 	      if (!ec)
 		{
 		  if (--max_allowed_symlinks == 0)
-		    ec.assign(ELOOP, std::generic_category());
+		    ec = make_error_code(std::errc::too_many_symbolic_link_levels);
 		  else
 		    {
 		      if (link.is_absolute())
@@ -967,7 +967,7 @@ fs::permissions(const path& p, perms prms, error_code& ec) noexcept
     err = errno;
 #else
   if (nofollow && is_symlink(st))
-    ec = std::make_error_code(std::errc::operation_not_supported);
+    ec = std::make_error_code(std::errc::not_supported);
   else if (posix::chmod(p.c_str(), static_cast<mode_t>(prms)))
     err = errno;
 #endif
