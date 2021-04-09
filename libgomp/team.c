@@ -298,6 +298,9 @@ gomp_free_thread (void *arg __attribute__((unused)))
       gomp_end_task ();
       free (task);
     }
+#ifndef HAVE_TLS
+  free(pthread_getspecific (gomp_tls_key));
+#endif
 }
 
 /* Launch a team.  */
@@ -998,18 +1001,25 @@ gomp_team_end (void)
 
 /* Constructors for this file.  */
 
-static void __attribute__((constructor))
+static short KeysCreated = 0;
+
+void __attribute__((constructor))
 initialize_team (void)
 {
 #if !defined HAVE_TLS && !defined USE_EMUTLS
-  static struct gomp_thread initial_thread_tls_data;
+  struct gomp_thread *Ptr_initial_thread_tls_data;
+  Ptr_initial_thread_tls_data = 
+    (struct gomp_thread*) calloc(1,sizeof(struct gomp_thread));
 
-  pthread_key_create (&gomp_tls_key, NULL);
-  pthread_setspecific (gomp_tls_key, &initial_thread_tls_data);
+  if (!KeysCreated) pthread_key_create (&gomp_tls_key, NULL);
+  pthread_setspecific (gomp_tls_key, Ptr_initial_thread_tls_data);
 #endif
 
-  if (pthread_key_create (&gomp_thread_destructor, gomp_free_thread) != 0)
-    gomp_fatal ("could not create thread pool destructor.");
+  if (!KeysCreated && 
+      pthread_key_create (&gomp_thread_destructor, gomp_free_thread) != 0)
+      gomp_fatal ("could not create thread pool destructor.");
+
+  KeysCreated = 1;
 }
 
 static void __attribute__((destructor))
