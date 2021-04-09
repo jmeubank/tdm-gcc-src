@@ -53,6 +53,7 @@ DEFS = -DHAVE_CONFIG_H
 COMPILE = $(CC) -c $(CPPFLAGS) $(CFLAGS) $(DEFS) $(DEFS-$@) $(INCLUDES)
 
 HEADERS = \
+  canonicalize.h \
   gmo.h \
   gettextP.h \
   hash-string.h \
@@ -62,6 +63,7 @@ HEADERS = \
   eval-plural.h \
   localcharset.h \
   relocatable.h \
+  relocatex.h \
   libgnuintl.h
 SOURCES = \
   bindtextdom.c \
@@ -82,6 +84,8 @@ SOURCES = \
   plural-exp.c \
   localcharset.c \
   relocatable.c \
+  relocatex.c \
+  canonicalize.c \
   localename.c \
   log.c \
   osdep.c \
@@ -105,6 +109,8 @@ OBJECTS = \
   plural-exp.o \
   localcharset.o \
   relocatable.o \
+  relocatex.o \
+  canonicalize.o \
   localename.o \
   log.o \
   osdep.o \
@@ -165,7 +171,7 @@ install-info install-dvi install-ps install-pdf install-html:
 $(OBJECTS): config.h libintl.h
 bindtextdom.o dcgettext.o dcigettext.o dcngettext.o dgettext.o \
 dngettext.o finddomain.o gettext.o intl-compat.o loadmsgcat.o \
-localealias.o ngettext.o textdomain.o: gettextP.h gmo.h loadinfo.h
+localealias.o ngettext.o textdomain.o: gettextP.h gmo.h loadinfo.h relocatex.h
 dcigettext.o loadmsgcat.o: hash-string.h
 explodename.o l10nflist.o: loadinfo.h
 dcigettext.o loadmsgcat.o plural.o plural-exp.o: plural-exp.h plural-config.h
