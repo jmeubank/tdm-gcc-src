@@ -42,7 +42,7 @@ toolexecdir = @toolexecdir@
 toolexeclibdir = @toolexeclibdir@
 enable_shared = @enable_shared@
 
-LN_S=@LN_S@
+LN_S=cp -Rp
 AWK=@AWK@
 
 ifeq (cp -p,$(LN_S))
