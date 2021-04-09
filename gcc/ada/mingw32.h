@@ -36,8 +36,6 @@
 #ifndef _MINGW32_H
 #define _MINGW32_H
 
-#include <_mingw.h>
-
 #ifndef RTX
 #define GNAT_UNICODE_SUPPORT
 #define _UNICODE /* For C runtime */
@@ -47,6 +45,10 @@
 /* We need functionality available only starting with Windows XP */
 #ifndef _WIN32_WINNT
 #define _WIN32_WINNT 0x0501
+#endif
+
+#ifdef _WIN64
+#  include <_mingw.h>
 #endif
 
 #ifndef __CYGWIN__
@@ -59,6 +61,10 @@
 #define _EMMINTRIN_H_INCLUDED
 #endif
 #include <windows.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* After including this file it is possible to use the character t as prefix
    to routines. If GNAT_UNICODE_SUPPORT is defined then the unicode enabled
@@ -120,6 +126,10 @@ extern UINT __gnat_current_ccs_encoding;
 
 #ifndef MAXPATHLEN
 #define MAXPATHLEN MAX_PATH
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif /* _MINGW32_H */

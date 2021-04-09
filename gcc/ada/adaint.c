@@ -52,6 +52,14 @@
 #endif
 #define _FILE_OFFSET_BITS 64
 
+#if defined (__MINGW32__) || defined (__CYGWIN__)
+/* We MUST do this up-front, because definition of the UNICODE feature
+ * test macros is (erroneously) delegated to this private header, and
+ * these MUST be defined BEFORE any system header may be included.
+ */
+#include "mingw32.h"
+#endif
+
 #ifdef __vxworks
 
 /* No need to redefine exit here.  */
@@ -160,8 +168,6 @@ extern "C" {
 #endif
 
 #elif defined (__MINGW32__) || defined (__CYGWIN__)
-
-#include "mingw32.h"
 
 /* Current code page and CCS encoding to use, set in initialize.c.  */
 UINT __gnat_current_codepage;

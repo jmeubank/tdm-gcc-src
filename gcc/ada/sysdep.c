@@ -58,7 +58,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <fcntl.h>
+#include "adafcntl.h"
 #include <sys/stat.h>
 #else
 #include "config.h"

@@ -40,6 +40,14 @@
 #include "vxWorks.h"
 #endif
 
+/* Likewise this, to ensure that the UNICODE feature test macros, which
+ * are defined in "mingw32.h", (contrary to established convention), get
+ * defined before any other header is included.
+ */
+#if defined (__MINGW32__)
+#include "mingw32.h"
+#endif
+
 #ifdef IN_RTS
 /* We don't have libiberty, so use malloc.  */
 #define xmalloc(S) malloc (S)
@@ -50,7 +58,7 @@
 #endif
 
 #include "raise.h"
-#include <fcntl.h>
+#include "adafcntl.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -70,7 +78,6 @@ int __gnat_rt_init_count = 0;
    and finalize properly the run-time. */
 
 #if defined (__MINGW32__)
-#include "mingw32.h"
 #include <windows.h>
 
 extern void __gnat_init_float (void);
