@@ -61,6 +61,11 @@ relative prefix can be found, return @code{NULL}.
 #include <sys/stat.h>
 #endif
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
 #include <string.h>
 
 #include "ansidecl.h"
@@ -216,6 +221,26 @@ free_split_directories (char **dirs)
     }
 }
 
+#ifdef _WIN32
+static int
+win32_is_executable (const char *path)
+{
+  const char *extension_begins_at = path + strlen(path) - 4;
+  if (extension_begins_at < path)
+    extension_begins_at = path;
+
+  return
+  /* File name should end in .exe, .com or .bat */
+		 (    ! stricmp (extension_begins_at, ".exe")
+           || ! stricmp (extension_begins_at, ".com")
+           || ! stricmp (extension_begins_at, ".bat")
+          )
+  /* Cannot be a directory (0x10) or nonexistent (0x80000000) */
+      && ! (GetFileAttributesA (path) & 0x80000010)
+         ;
+}
+#endif
+
 /* Given three strings PROGNAME, BIN_PREFIX, PREFIX, return a string that gets
    to PREFIX starting with the directory portion of PROGNAME and a relative
    pathname of the difference between BIN_PREFIX and PREFIX.
@@ -287,11 +312,17 @@ make_relative_prefix_1 (const char *progname, const char *bin_prefix,
 			nstore[endp - startp] = 0;
 		    }
 		  strcat (nstore, progname);
+#ifdef _WIN32
+		  if (win32_is_executable (nstore)
+           || win32_is_executable (strcat (nstore, HOST_EXECUTABLE_SUFFIX))
+              )
+#else
 		  if (! access (nstore, X_OK)
 #ifdef HAVE_HOST_EXECUTABLE_SUFFIX
                       || ! access (strcat (nstore, HOST_EXECUTABLE_SUFFIX), X_OK)
 #endif
 		      )
+#endif
 		    {
 #if defined (HAVE_SYS_STAT_H) && defined (S_ISREG)
 		      struct stat st;
