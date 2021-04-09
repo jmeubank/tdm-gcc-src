@@ -202,7 +202,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  __whence = SEEK_CUR;
 	else
 	  __whence = SEEK_END;
-#ifdef _GLIBCXX_USE_LFS
+#if defined(_GLIBCXX_USE_LFS) || defined(__MINGW32__)
 	if (!fseeko64(_M_file, __off, __whence))
 	  __ret = std::streampos(ftello64(_M_file));
 #else
