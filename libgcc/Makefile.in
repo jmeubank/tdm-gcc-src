@@ -90,6 +90,8 @@ LN_S = @LN_S@
 
 PWD_COMMAND = $${PWDCMD-pwd}
 
+SHLIB_MAYBE64 = $(if $(findstring $(if $(findstring x86_64,$(host_noncanonical)),.,64),$(MULTIDIR)),_64)
+
 # Flags to pass to a recursive make.
 FLAGS_TO_PASS = \
 	"AR=$(AR)" \
@@ -975,7 +977,7 @@ libgcc.map.in: $(SHLIB_MAPFILES)
 libgcc.map: $(SHLIB_MKMAP) libgcc.map.in $(libgcc-s-objects)
 	{ $(NM) $(SHLIB_NM_FLAGS) $(libgcc-s-objects); echo %%; \
 	  cat libgcc.map.in; \
-	} | $(AWK) -f $(SHLIB_MKMAP) $(SHLIB_MKMAP_OPTS) > tmp-$@
+	} | $(AWK) -f $(SHLIB_MKMAP) $(subst @shlib_maybe64@,$(SHLIB_MAYBE64),$(SHLIB_MKMAP_OPTS)) > tmp-$@
 	mv tmp-$@ $@
 libgcc_s$(SHLIB_EXT): libgcc.map
 mapfile = libgcc.map
@@ -997,7 +999,8 @@ libgcc_s$(SHLIB_EXT): $(libgcc-s-objects) $(extra-parts) libgcc.a
 		@shlib_base_name@,libgcc_s,$(subst \
 		@shlib_map_file@,$(mapfile),$(subst \
 		@shlib_slibdir_qual@,$(MULTIOSSUBDIR),$(subst \
-		@shlib_slibdir@,$(shlib_slibdir),$(SHLIB_LINK))))))))
+		@shlib_maybe64@,$(SHLIB_MAYBE64),$(subst \
+		@shlib_slibdir@,$(shlib_slibdir),$(SHLIB_LINK)))))))))
 
 libunwind$(SHLIB_EXT): $(libunwind-s-objects) $(extra-parts)
 	# @multilib_flags@ is still needed because this may use
@@ -1161,7 +1164,8 @@ install-shared:
 
 	$(subst @multilib_dir@,$(MULTIDIR),$(subst \
 		@shlib_base_name@,libgcc_s,$(subst \
-		@shlib_slibdir_qual@,$(MULTIOSSUBDIR),$(SHLIB_INSTALL))))
+		@shlib_maybe64@,$(SHLIB_MAYBE64),$(subst \
+		@shlib_slibdir_qual@,$(MULTIOSSUBDIR),$(SHLIB_INSTALL)))))
 
 install-leaf: $(install-shared) $(install-libunwind)
 	$(mkinstalldirs) $(DESTDIR)$(inst_libdir)

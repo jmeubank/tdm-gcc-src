@@ -214,10 +214,12 @@ AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
+MAYBE64 = $(if $(findstring x86_64,$(host_triplet)),$(if $(MULTISUBDIR),,_64),$(if $(findstring /64,$(MULTISUBDIR)),_64))
+TARGET_MAYBE64 = $(patsubst %.la,%$(MAYBE64).la,$@)
 libquadmath_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
 	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CCLD) \
 	$(AM_CFLAGS) $(CFLAGS) $(libquadmath_la_LDFLAGS) $(LDFLAGS) -o \
-	$@
+	$(TARGET_MAYBE64)
 @BUILD_LIBQUADMATH_TRUE@am_libquadmath_la_rpath = -rpath \
 @BUILD_LIBQUADMATH_TRUE@	$(toolexeclibdir)
 AM_V_P = $(am__v_P_@AM_V@)
@@ -826,7 +828,15 @@ strtod/tens_in_limb.lo: strtod/$(am__dirstamp) \
 	strtod/$(DEPDIR)/$(am__dirstamp)
 
 libquadmath.la: $(libquadmath_la_OBJECTS) $(libquadmath_la_DEPENDENCIES) $(EXTRA_libquadmath_la_DEPENDENCIES) 
-	$(AM_V_CCLD)$(libquadmath_la_LINK) $(am_libquadmath_la_rpath) $(libquadmath_la_OBJECTS) $(libquadmath_la_LIBADD) $(LIBS)
+	$(AM_V_CCLD)$(libquadmath_la_LINK) $(am_libquadmath_la_rpath) $(libquadmath_la_OBJECTS) $(libquadmath_la_LIBADD) $(LIBS) \
+	&& rm -f "$@" \
+	&& cat ".libs/$(TARGET_MAYBE64)" | sed 's/\(.*\)_64\(\.dll\)\?\.a/\1\2\.a/' >"$@" \
+	&& cp -p "$@" ".libs/$@" \
+	&& cp -p "$@" ".libs/$@i" \
+	&& mv -f "$(patsubst %.la,%.dll.a,.libs/$(TARGET_MAYBE64))" tmp \
+	&& mv -f tmp "$(patsubst %.la,%.dll.a,.libs/$@)" \
+	&& mv -f "$(patsubst %.la,%.a,.libs/$(TARGET_MAYBE64))" tmp \
+	&& mv -f tmp "$(patsubst %.la,%.a,.libs/$@)"
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)

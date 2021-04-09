@@ -516,9 +516,11 @@ am__v_CC_ = $(am__v_CC_@AM_DEFAULT_V@)
 am__v_CC_0 = @echo "  CC      " $@;
 am__v_CC_1 = 
 CCLD = $(CC)
+MAYBE64 = $(if $(findstring x86_64,$(host_triplet)),$(if $(MULTISUBDIR),,_64),$(if $(findstring /64,$(MULTISUBDIR)),_64))
+TARGET_MAYBE64 = $(patsubst %.la,%$(MAYBE64).la,$@)
 LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
-	$(AM_LDFLAGS) $(LDFLAGS) -o $@
+	$(AM_LDFLAGS) $(LDFLAGS) -o $(TARGET_MAYBE64)
 AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
@@ -1704,7 +1706,15 @@ libcaf_single.la: $(libcaf_single_la_OBJECTS) $(libcaf_single_la_DEPENDENCIES) $
 	$(AM_V_GEN)$(libcaf_single_la_LINK) -rpath $(cafexeclibdir) $(libcaf_single_la_OBJECTS) $(libcaf_single_la_LIBADD) $(LIBS)
 
 libgfortran.la: $(libgfortran_la_OBJECTS) $(libgfortran_la_DEPENDENCIES) $(EXTRA_libgfortran_la_DEPENDENCIES) 
-	$(AM_V_GEN)$(libgfortran_la_LINK) -rpath $(toolexeclibdir) $(libgfortran_la_OBJECTS) $(libgfortran_la_LIBADD) $(LIBS)
+	$(AM_V_GEN)$(libgfortran_la_LINK) -rpath $(toolexeclibdir) $(libgfortran_la_OBJECTS) $(libgfortran_la_LIBADD) $(LIBS) \
+	&& rm -f "$@" \
+	&& cat ".libs/$(TARGET_MAYBE64)" | sed 's/\(.*\)_64\(\.dll\)\?\.a/\1\2\.a/' >"$@" \
+	&& cp -p "$@" ".libs/$@" \
+	&& cp -p "$@" ".libs/$@i" \
+	&& mv -f "$(patsubst %.la,%.dll.a,.libs/$(TARGET_MAYBE64))" tmp \
+	&& mv -f tmp "$(patsubst %.la,%.dll.a,.libs/$@)" \
+	&& mv -f "$(patsubst %.la,%.a,.libs/$(TARGET_MAYBE64))" tmp \
+	&& mv -f tmp "$(patsubst %.la,%.a,.libs/$@)"
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)

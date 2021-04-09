@@ -154,9 +154,11 @@ AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
+MAYBE64 = $(if $(findstring x86_64,$(host_triplet)),$(if $(MULTISUBDIR),,_64),$(if $(findstring /64,$(MULTISUBDIR)),_64))
+TARGET_MAYBE64 = $(patsubst %.la,%$(MAYBE64).la,$@)
 libssp_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
-	$(libssp_la_LDFLAGS) $(LDFLAGS) -o $@
+	$(libssp_la_LDFLAGS) $(LDFLAGS) -o $(TARGET_MAYBE64)
 am_libssp_nonshared_la_OBJECTS = libssp_nonshared_la-ssp-local.lo
 libssp_nonshared_la_OBJECTS = $(am_libssp_nonshared_la_OBJECTS)
 libssp_nonshared_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
@@ -530,7 +532,15 @@ clean-toolexeclibLTLIBRARIES:
 	}
 
 libssp.la: $(libssp_la_OBJECTS) $(libssp_la_DEPENDENCIES) $(EXTRA_libssp_la_DEPENDENCIES) 
-	$(AM_V_CCLD)$(libssp_la_LINK) -rpath $(toolexeclibdir) $(libssp_la_OBJECTS) $(libssp_la_LIBADD) $(LIBS)
+	$(AM_V_CCLD)$(libssp_la_LINK) -rpath $(toolexeclibdir) $(libssp_la_OBJECTS) $(libssp_la_LIBADD) $(LIBS) \
+	&& rm -f "$@" \
+	&& cat ".libs/$(TARGET_MAYBE64)" | sed 's/\(.*\)_64\(\.dll\)\?\.a/\1\2\.a/' >"$@" \
+	&& cp -p "$@" ".libs/$@" \
+	&& cp -p "$@" ".libs/$@i" \
+	&& mv -f "$(patsubst %.la,%.dll.a,.libs/$(TARGET_MAYBE64))" tmp \
+	&& mv -f tmp "$(patsubst %.la,%.dll.a,.libs/$@)" \
+	&& mv -f "$(patsubst %.la,%.a,.libs/$(TARGET_MAYBE64))" tmp \
+	&& mv -f tmp "$(patsubst %.la,%.a,.libs/$@)"
 
 libssp_nonshared.la: $(libssp_nonshared_la_OBJECTS) $(libssp_nonshared_la_DEPENDENCIES) $(EXTRA_libssp_nonshared_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(libssp_nonshared_la_LINK) -rpath $(toolexeclibdir) $(libssp_nonshared_la_OBJECTS) $(libssp_nonshared_la_LIBADD) $(LIBS)
