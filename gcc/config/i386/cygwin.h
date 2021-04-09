@@ -55,6 +55,10 @@ along with GCC; see the file COPYING3.  If not see
     fvtable-verify=std:vtv_end.o%s} \
    crtend.o%s"
 
+/* There is a bug when building i686 dw-2 exceptions
+   where gcc_s gets stripped which this works around */
+#define PREVENT_STRIP_REG_FRAME_INFO "--undefined=___deregister_frame_info --undefined=___register_frame_info"
+
 /* Normally, -lgcc is not needed since everything in it is in the DLL, but we
    want to allow things to be added to it when installing new versions of
    GCC without making a new CYGWIN.DLL, so we leave it.  Profiling is handled
@@ -65,7 +69,7 @@ along with GCC; see the file COPYING3.  If not see
  %{static|static-libgcc:-lgcc -lgcc_eh} \
  %{!static: \
    %{!static-libgcc: \
-     -lgcc_s -lgcc \
+     -lgcc_s " PREVENT_STRIP_REG_FRAME_INFO " -lgcc \
     } \
   } "
 #else
