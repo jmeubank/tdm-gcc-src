@@ -4275,9 +4275,10 @@ driver_handle_option (struct gcc_options *opts,
     case OPT_shared_libgcc:
     case OPT_static_libgfortran:
     case OPT_static_libstdc__:
+    case OPT_shared_libstdc__:
       /* These are always valid, since gcc.c itself understands the
 	 first two, gfortranspec.c understands -static-libgfortran and
-	 g++spec.c understands -static-libstdc++ */
+	 g++spec.c understands -static/shared-libstdc++ */
       validated = true;
       break;
 

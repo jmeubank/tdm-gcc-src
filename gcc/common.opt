@@ -3380,6 +3380,9 @@ Driver
 static-libstdc++
 Driver
 
+shared-libstdc++
+Driver
+
 static-libgo
 Driver
 ; Documented for Go, but always accepted by driver.
