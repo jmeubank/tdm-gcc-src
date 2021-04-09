@@ -1400,7 +1400,7 @@ win32_filetime (HANDLE h)
 
 /* As above but starting from a FILETIME.  */
 static void
-f2t (const FILETIME *ft, __time64_t *t)
+f2t (const FILETIME *ft, GNAT_TIME_T *t)
 {
   union
   {
@@ -1409,7 +1409,7 @@ f2t (const FILETIME *ft, __time64_t *t)
   } t_write;
 
   t_write.ft_time = *ft;
-  *t = (__time64_t) (t_write.ull_time / 10000000ULL - w32_epoch_offset);
+  *t = (GNAT_TIME_T) (t_write.ull_time / 10000000ULL - w32_epoch_offset);
 }
 #endif
 
@@ -1422,7 +1422,7 @@ __gnat_file_time_name_attr (char* name, struct file_attributes* attr)
 #if defined (_WIN32)
       BOOL res;
       WIN32_FILE_ATTRIBUTE_DATA fad;
-      __time64_t ret = -1;
+      GNAT_TIME_T ret = -1;
       TCHAR wname[GNAT_MAX_PATH_LEN];
       S2WSC (wname, name, GNAT_MAX_PATH_LEN);
 

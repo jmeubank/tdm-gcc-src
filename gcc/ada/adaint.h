@@ -59,13 +59,23 @@ extern "C" {
 #define GNAT_LSTAT lstat64
 #define GNAT_STRUCT_STAT struct stat64
 
-#elif defined(_WIN32)
+#elif defined(_WIN64)
 #define GNAT_FOPEN fopen64
 #define GNAT_OPEN open
 #define GNAT_STAT stat64
 #define GNAT_FSTAT fstat64
 #define GNAT_LSTAT lstat
 #define GNAT_STRUCT_STAT struct stat64
+#define GNAT_TIME_T __time64_t
+
+#elif defined(_WIN32)
+#define GNAT_FOPEN fopen64
+#define GNAT_OPEN open
+#define GNAT_STAT _stati64
+#define GNAT_FSTAT _fstati64
+#define GNAT_LSTAT _stati64
+#define GNAT_STRUCT_STAT struct _stati64
+#define GNAT_TIME_T time_t
 
 #elif defined(__APPLE__)
 
