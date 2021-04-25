@@ -84,6 +84,7 @@ AR_FLAGS = rc
 
 CC = @CC@
 CFLAGS = @CFLAGS@
+LDFLAGS = @LDFLAGS@
 RANLIB = @RANLIB@
 LN_S = @LN_S@
 
@@ -990,7 +991,7 @@ libgcc_s$(SHLIB_EXT): $(libgcc-s-objects) $(extra-parts) libgcc.a
 	# @multilib_dir@ is not really necessary, but sometimes it has
 	# more uses than just a directory name.
 	$(mkinstalldirs) $(MULTIDIR)
-	$(subst @multilib_flags@,$(CFLAGS) -B./,$(subst \
+	$(subst @multilib_flags@,$(CFLAGS) -B./ $(LDFLAGS),$(subst \
 		@multilib_dir@,$(MULTIDIR),$(subst \
 		@shlib_objs@,$(objects) libgcc.a,$(subst \
 		@shlib_base_name@,libgcc_s,$(subst \
