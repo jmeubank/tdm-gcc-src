@@ -36,59 +36,10 @@ package Rtsfind is
    -- Runtime Unit Table --
    ------------------------
 
-   --  The following type includes an enumeration entry for each runtime unit.
-   --  The enumeration literal represents the fully qualified name of the unit,
-   --  as follows:
-
-   --    Names of the form Ada_xxx are first level children of Ada, whose name
-   --    is Ada.xxx. For example, the name Ada_Tags refers to package Ada.Tags.
-
-   --    Names of the form Ada_Calendar_xxx are second level children of
-   --    Ada.Calendar. This is part of a temporary implementation of delays;
-   --    eventually, packages implementing delays will be found relative to
-   --    the package that declares the time type.
-
-   --    Names of the form Ada_Interrupts_xxx are second level children of
-   --    Ada.Interrupts. This is needed for Ada.Interrupts.Names which is used
-   --    by pragma Interrupt_State.
-
-   --    Names of the form Ada_Real_Time_xxx are second level children of
-   --    Ada.Real_Time.
-
-   --    Names of the form Ada_Streams_xxx are second level children
-   --    of Ada.Streams.
-
-   --    Names of the form Ada_Strings_xxx are second level children
-   --    of Ada.Strings.
-
-   --    Names of the form Ada_Text_IO_xxx are second level children of
-   --    Ada.Text_IO.
-
-   --    Names of the form Ada_Wide_Text_IO_xxx are second level children of
-   --    Ada.Wide_Text_IO.
-
-   --    Names of the form Ada_Wide_Wide_Text_IO_xxx are second level children
-   --    of Ada.Wide_Wide_Text_IO.
-
-   --    Names of the form Interfaces_xxx are first level children of
-   --    Interfaces. For example, the name Interfaces_Packed_Decimal refers to
-   --    package Interfaces.Packed_Decimal.
-
-   --    Names of the form System_xxx are first level children of System, whose
-   --    name is System.xxx. For example, the name System_Str_Concat refers to
-   --    package System.Str_Concat.
-
-   --    Names of the form System_Storage_Pools_xxx are second level children
-   --    of the package System.Storage_Pools.
-
-   --    Names of the form System_Strings_xxx are second level children of the
-   --    package System.Strings.
-
-   --    Names of the form System_Tasking_xxx are second level children of the
-   --    package System.Tasking. For example, System_Tasking_Stages refers to
-   --    the package System.Tasking.Stages.
-
-   --    Other names stand for themselves (e.g. System for package System)
+   --  The following type includes an enumeration literal for each runtime
+   --  unit. The enumeration literal is the full expanded name of the unit
+   --  with "." replaced by "_". For example, the enumeration literal for
+   --  Ada.Interrupts.Names is Ada_Interrupts_Names
 
    --  This list can contain both subprogram and package unit names. For
    --  packages, the accessible entities in the package are separately listed
@@ -100,13 +51,13 @@ package Rtsfind is
    --  seem worthwhile, since the implementation controls the set of units that
    --  are referenced, and this restriction is easily met.
 
-   --  IMPORTANT NOTE: the specs of packages and procedures with'ed using this
-   --  mechanism may not contain use clauses. This is because these subprograms
-   --  are compiled in the current visibility environment, and it would be too
-   --  much trouble to establish a clean environment for the compilation. The
-   --  presence of extraneous visible stuff has no effect on the compilation
-   --  except in the presence of use clauses (which might result in unexpected
-   --  ambiguities).
+   --  IMPORTANT NOTE: the specs of packages and procedures with'ed using
+   --  this mechanism must not contain use clauses. This is because these
+   --  subprograms are compiled in the current visibility environment, and it
+   --  would be too much trouble to establish a clean environment for the
+   --  compilation. The presence of extraneous visible stuff has no effect on
+   --  the compilation except in the presence of use clauses, which might
+   --  result in unexpected ambiguities.
 
    type RTU_Id is (
 
@@ -220,6 +171,7 @@ package Rtsfind is
       System_Atomic_Primitives,
       System_Aux_DEC,
       System_Bignums,
+      System_Bitfields,
       System_Bit_Ops,
       System_Boolean_Array_Operations,
       System_Byte_Swapping,
@@ -808,6 +760,8 @@ package Rtsfind is
      RE_Bignum_In_LLI_Range,             -- System.Bignums
      RE_To_Bignum,                       -- System.Bignums
      RE_From_Bignum,                     -- System.Bignums
+
+     RE_Copy_Bitfield,                   -- System.Bitfields
 
      RE_Bit_And,                         -- System.Bit_Ops
      RE_Bit_Eq,                          -- System.Bit_Ops
@@ -2051,6 +2005,8 @@ package Rtsfind is
      RE_To_Bignum                        => System_Bignums,
      RE_From_Bignum                      => System_Bignums,
 
+     RE_Copy_Bitfield                    => System_Bitfields,
+
      RE_Bit_And                          => System_Bit_Ops,
      RE_Bit_Eq                           => System_Bit_Ops,
      RE_Bit_Not                          => System_Bit_Ops,
@@ -2755,23 +2711,23 @@ package Rtsfind is
      RE_W_WC                             => System_Stream_Attributes,
      RE_W_WWC                            => System_Stream_Attributes,
 
-     RE_Storage_Array_Input              =>  System_Strings_Stream_Ops,
-     RE_Storage_Array_Input_Blk_IO       =>  System_Strings_Stream_Ops,
-     RE_Storage_Array_Output             =>  System_Strings_Stream_Ops,
-     RE_Storage_Array_Output_Blk_IO      =>  System_Strings_Stream_Ops,
-     RE_Storage_Array_Read               =>  System_Strings_Stream_Ops,
-     RE_Storage_Array_Read_Blk_IO        =>  System_Strings_Stream_Ops,
-     RE_Storage_Array_Write              =>  System_Strings_Stream_Ops,
-     RE_Storage_Array_Write_Blk_IO       =>  System_Strings_Stream_Ops,
+     RE_Storage_Array_Input              => System_Strings_Stream_Ops,
+     RE_Storage_Array_Input_Blk_IO       => System_Strings_Stream_Ops,
+     RE_Storage_Array_Output             => System_Strings_Stream_Ops,
+     RE_Storage_Array_Output_Blk_IO      => System_Strings_Stream_Ops,
+     RE_Storage_Array_Read               => System_Strings_Stream_Ops,
+     RE_Storage_Array_Read_Blk_IO        => System_Strings_Stream_Ops,
+     RE_Storage_Array_Write              => System_Strings_Stream_Ops,
+     RE_Storage_Array_Write_Blk_IO       => System_Strings_Stream_Ops,
 
-     RE_Stream_Element_Array_Input          =>  System_Strings_Stream_Ops,
-     RE_Stream_Element_Array_Input_Blk_IO   =>  System_Strings_Stream_Ops,
-     RE_Stream_Element_Array_Output         =>  System_Strings_Stream_Ops,
-     RE_Stream_Element_Array_Output_Blk_IO  =>  System_Strings_Stream_Ops,
-     RE_Stream_Element_Array_Read           =>  System_Strings_Stream_Ops,
-     RE_Stream_Element_Array_Read_Blk_IO    =>  System_Strings_Stream_Ops,
-     RE_Stream_Element_Array_Write          =>  System_Strings_Stream_Ops,
-     RE_Stream_Element_Array_Write_Blk_IO   =>  System_Strings_Stream_Ops,
+     RE_Stream_Element_Array_Input          => System_Strings_Stream_Ops,
+     RE_Stream_Element_Array_Input_Blk_IO   => System_Strings_Stream_Ops,
+     RE_Stream_Element_Array_Output         => System_Strings_Stream_Ops,
+     RE_Stream_Element_Array_Output_Blk_IO  => System_Strings_Stream_Ops,
+     RE_Stream_Element_Array_Read           => System_Strings_Stream_Ops,
+     RE_Stream_Element_Array_Read_Blk_IO    => System_Strings_Stream_Ops,
+     RE_Stream_Element_Array_Write          => System_Strings_Stream_Ops,
+     RE_Stream_Element_Array_Write_Blk_IO   => System_Strings_Stream_Ops,
 
      RE_String_Input                     => System_Strings_Stream_Ops,
      RE_String_Input_Blk_IO              => System_Strings_Stream_Ops,
@@ -3155,7 +3111,7 @@ package Rtsfind is
    --  immediately, since obviously Ent cannot be the entity in question if the
    --  corresponding unit has not been loaded.
 
-   function Is_RTU (Ent : Entity_Id;  U : RTU_Id) return Boolean;
+   function Is_RTU (Ent : Entity_Id; U : RTU_Id) return Boolean;
    pragma Inline (Is_RTU);
    --  This function determines if the given entity corresponds to the entity
    --  for the unit referenced by U. If this unit has not been loaded, the
@@ -3198,6 +3154,23 @@ package Rtsfind is
    --  Returns true if a call to RTE will succeed without raising an exception
    --  and without generating an error message, i.e. if the call will obtain
    --  the desired entity without any problems.
+   --
+   --  If we call this and it returns True, we should generate a call to E.
+   --  In other words, the compiler should not call RTE_Available (E) until
+   --  it has decided it wants to generate a call to E. Otherwise we can get
+   --  spurious dependencies and elaboration orders.
+   --
+   --     if RTE_Available (E) -- WRONG!
+   --       and then <some condition>
+   --     then
+   --        generate call to E;
+   --
+   --  Should be:
+   --
+   --     if <some condition>
+   --       and then RTE_Available (E) -- Correct
+   --     then
+   --        generate call to E;
 
    function RTE_Record_Component (E : RE_Id) return Entity_Id;
    --  Given the entity defined in the above tables, as identified by the

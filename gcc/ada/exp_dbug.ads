@@ -441,6 +441,8 @@ package Exp_Dbug is
    --  generating code, since the necessary information for computing the
    --  proper external name is not available in this case.
 
+   --  WARNING: There is a matching C declaration of this subprogram in fe.h
+
    -------------------------------------
    -- Encoding for translation into C --
    -------------------------------------
@@ -926,6 +928,8 @@ package Exp_Dbug is
    --  if we are not generating code, since the necessary information for
    --  computing the proper encoded name is not available in this case.
 
+   --  WARNING: There is a matching C declaration of this subprogram in fe.h
+
    --------------
    -- Renaming --
    --------------
@@ -1391,6 +1395,8 @@ package Exp_Dbug is
    --  of the string in Name_Len, and an ASCII.NUL character stored following
    --  the name.
 
+   --  WARNING: There is a matching C declaration of this subprogram in fe.h
+
    ---------------------------------
    -- Subtypes of Variant Records --
    ---------------------------------
@@ -1452,18 +1458,21 @@ package Exp_Dbug is
    --  a character literal, the name is encoded as described in the following
    --  paragraph.
 
-   --  A name QUhh, where each 'h' is a lower-case hexadecimal digit, stands
-   --  for a character whose Unicode encoding is hh, and QWhhhh likewise stands
-   --  for a wide character whose encoding is hhhh. The representation values
-   --  are encoded as for ordinary enumeration literals (and have no necessary
-   --  relationship to the values encoded in the names).
+   --  The characters 'a'..'z' and '0'..'9' are represented as Qc, where 'c'
+   --  stands for the character itself.  A name QUhh, where each 'h' is a
+   --  lower-case hexadecimal digit, stands for a character whose Unicode
+   --  encoding is hh, and QWhhhh likewise stands for a wide character whose
+   --  encoding is hhhh. The representation values are encoded as for ordinary
+   --  enumeration literals (and have no necessary relationship to the values
+   --  encoded in the names).
 
    --  For example, given the type declaration
 
-   --    type x is (A, 'C', B);
+   --    type x is (A, 'C', 'b');
 
    --  the second enumeration literal would be named QU43 and the value
-   --  assigned to it would be 1.
+   --  assigned to it would be 1, and the third enumeration literal would be
+   --  named Qb and the value assigned to it would be 2.
 
    -----------------------------------------------
    -- Secondary Dispatch tables of tagged types --

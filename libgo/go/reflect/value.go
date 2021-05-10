@@ -201,7 +201,8 @@ type nonEmptyInterface struct {
 // v.flag.mustBe(Bool), which will only bother to copy the
 // single important word for the receiver.
 func (f flag) mustBe(expected Kind) {
-	if f.kind() != expected {
+	// TODO(mvdan): use f.kind() again once mid-stack inlining gets better
+	if Kind(f&flagKindMask) != expected {
 		panic(&ValueError{methodName(), f.kind()})
 	}
 }
@@ -209,8 +210,14 @@ func (f flag) mustBe(expected Kind) {
 // mustBeExported panics if f records that the value was obtained using
 // an unexported field.
 func (f flag) mustBeExported() {
+	if f == 0 || f&flagRO != 0 {
+		f.mustBeExportedSlow()
+	}
+}
+
+func (f flag) mustBeExportedSlow() {
 	if f == 0 {
-		panic(&ValueError{methodName(), 0})
+		panic(&ValueError{methodName(), Invalid})
 	}
 	if f&flagRO != 0 {
 		panic("reflect: " + methodName() + " using value obtained using unexported field")
@@ -221,6 +228,12 @@ func (f flag) mustBeExported() {
 // which is to say that either it was obtained using an unexported field
 // or it is not addressable.
 func (f flag) mustBeAssignable() {
+	if f&flagRO != 0 || f&flagAddr == 0 {
+		f.mustBeAssignableSlow()
+	}
+}
+
+func (f flag) mustBeAssignableSlow() {
 	if f == 0 {
 		panic(&ValueError{methodName(), Invalid})
 	}
@@ -401,7 +414,7 @@ func (v Value) call(op string, in []Value) []Value {
 	if v.flag&flagMethod != 0 {
 		nin++
 	}
-	firstPointer := len(in) > 0 && t.In(0).Kind() != Ptr && v.flag&flagMethodFn != 0
+	firstPointer := len(in) > 0 && ifaceIndir(t.In(0).common()) && v.flag&flagMethodFn != 0
 	params := make([]unsafe.Pointer, nin)
 	off := 0
 	if v.flag&flagMethod != 0 {
@@ -790,7 +803,7 @@ func (v Value) Interface() (i interface{}) {
 
 func valueInterface(v Value, safe bool) interface{} {
 	if v.flag == 0 {
-		panic(&ValueError{"reflect.Value.Interface", 0})
+		panic(&ValueError{"reflect.Value.Interface", Invalid})
 	}
 	if safe && v.flag&flagRO != 0 {
 		// Do not allow access to unexported values via Interface,
@@ -871,10 +884,50 @@ func (v Value) IsNil() bool {
 // IsValid reports whether v represents a value.
 // It returns false if v is the zero Value.
 // If IsValid returns false, all other methods except String panic.
-// Most functions and methods never return an invalid value.
+// Most functions and methods never return an invalid Value.
 // If one does, its documentation states the conditions explicitly.
 func (v Value) IsValid() bool {
 	return v.flag != 0
+}
+
+// IsZero reports whether v is the zero value for its type.
+// It panics if the argument is invalid.
+func (v Value) IsZero() bool {
+	switch v.kind() {
+	case Bool:
+		return !v.Bool()
+	case Int, Int8, Int16, Int32, Int64:
+		return v.Int() == 0
+	case Uint, Uint8, Uint16, Uint32, Uint64, Uintptr:
+		return v.Uint() == 0
+	case Float32, Float64:
+		return math.Float64bits(v.Float()) == 0
+	case Complex64, Complex128:
+		c := v.Complex()
+		return math.Float64bits(real(c)) == 0 && math.Float64bits(imag(c)) == 0
+	case Array:
+		for i := 0; i < v.Len(); i++ {
+			if !v.Index(i).IsZero() {
+				return false
+			}
+		}
+		return true
+	case Chan, Func, Interface, Map, Ptr, Slice, UnsafePointer:
+		return v.IsNil()
+	case String:
+		return v.Len() == 0
+	case Struct:
+		for i := 0; i < v.NumField(); i++ {
+			if !v.Field(i).IsZero() {
+				return false
+			}
+		}
+		return true
+	default:
+		// This should never happens, but will act as a safeguard for
+		// later, as a default value doesn't makes sense here.
+		panic(&ValueError{"reflect.Value.IsZero", v.Kind()})
+	}
 }
 
 // Kind returns v's Kind.
@@ -1003,7 +1056,7 @@ func (it *MapIter) Value() Value {
 
 	t := (*mapType)(unsafe.Pointer(it.m.typ))
 	vtype := t.elem
-	return copyVal(vtype, it.m.flag.ro()|flag(vtype.Kind()), mapitervalue(it.it))
+	return copyVal(vtype, it.m.flag.ro()|flag(vtype.Kind()), mapiterelem(it.it))
 }
 
 // Next advances the map iterator and reports whether there is another
@@ -1171,6 +1224,11 @@ func (v Value) OverflowUint(x uint64) bool {
 	}
 	panic(&ValueError{"reflect.Value.OverflowUint", v.kind()})
 }
+
+//go:nocheckptr
+// This prevents inlining Value.Pointer when -d=checkptr is enabled,
+// which ensures cmd/compile can recognize unsafe.Pointer(v.Pointer())
+// and make an exception.
 
 // Pointer returns v's value as a uintptr.
 // It returns uintptr instead of unsafe.Pointer so that
@@ -1391,13 +1449,13 @@ func (v Value) SetCap(n int) {
 	s.Cap = n
 }
 
-// SetMapIndex sets the value associated with key in the map v to val.
+// SetMapIndex sets the element associated with key in the map v to elem.
 // It panics if v's Kind is not Map.
-// If val is the zero Value, SetMapIndex deletes the key from the map.
+// If elem is the zero Value, SetMapIndex deletes the key from the map.
 // Otherwise if v holds a nil map, SetMapIndex will panic.
-// As in Go, key's value must be assignable to the map's key type,
-// and val's value must be assignable to the map's value type.
-func (v Value) SetMapIndex(key, val Value) {
+// As in Go, key's elem must be assignable to the map's key type,
+// and elem's value must be assignable to the map's elem type.
+func (v Value) SetMapIndex(key, elem Value) {
 	v.mustBe(Map)
 	v.mustBeExported()
 	key.mustBeExported()
@@ -1409,17 +1467,17 @@ func (v Value) SetMapIndex(key, val Value) {
 	} else {
 		k = unsafe.Pointer(&key.ptr)
 	}
-	if val.typ == nil {
+	if elem.typ == nil {
 		mapdelete(v.typ, v.pointer(), k)
 		return
 	}
-	val.mustBeExported()
-	val = val.assignTo("reflect.Value.SetMapIndex", tt.elem, nil)
+	elem.mustBeExported()
+	elem = elem.assignTo("reflect.Value.SetMapIndex", tt.elem, nil)
 	var e unsafe.Pointer
-	if val.flag&flagIndir != 0 {
-		e = val.ptr
+	if elem.flag&flagIndir != 0 {
+		e = elem.ptr
 	} else {
-		e = unsafe.Pointer(&val.ptr)
+		e = unsafe.Pointer(&elem.ptr)
 	}
 	mapassign(v.typ, v.pointer(), k, e)
 }
@@ -1668,6 +1726,11 @@ func (v Value) Uint() uint64 {
 	}
 	panic(&ValueError{"reflect.Value.Uint", v.kind()})
 }
+
+//go:nocheckptr
+// This prevents inlining Value.UnsafeAddr when -d=checkptr is enabled,
+// which ensures cmd/compile can recognize unsafe.Pointer(v.UnsafeAddr())
+// and make an exception.
 
 // UnsafeAddr returns a pointer to v's data.
 // It is for advanced clients that also import the "unsafe" package.
@@ -2112,6 +2175,7 @@ func NewAt(typ Type, p unsafe.Pointer) Value {
 // assignTo returns a value v that can be assigned directly to typ.
 // It panics if v is not assignable to typ.
 // For a conversion to an interface type, target is a suggested scratch space to use.
+// target must be initialized memory (or nil).
 func (v Value) assignTo(context string, dst *rtype, target unsafe.Pointer) Value {
 	if v.flag&flagMethod != 0 {
 		v = makeMethodValue(context, v)
@@ -2220,6 +2284,11 @@ func convertOp(dst, src *rtype) func(Value, Type) Value {
 			case Int32:
 				return cvtRunesString
 			}
+		}
+
+	case Chan:
+		if dst.Kind() == Chan && specialChannelAssignability(dst, src) {
+			return cvtDirect
 		}
 	}
 
@@ -2464,7 +2533,7 @@ func mapiterinit(t *rtype, m unsafe.Pointer) unsafe.Pointer
 func mapiterkey(it unsafe.Pointer) (key unsafe.Pointer)
 
 //go:noescape
-func mapitervalue(it unsafe.Pointer) (value unsafe.Pointer)
+func mapiterelem(it unsafe.Pointer) (elem unsafe.Pointer)
 
 //go:noescape
 func mapiternext(it unsafe.Pointer)
@@ -2489,6 +2558,9 @@ func typedmemmove(t *rtype, dst, src unsafe.Pointer)
 // returning the number of elements copied.
 //go:noescape
 func typedslicecopy(elemType *rtype, dst, src sliceHeader) int
+
+//go:noescape
+func typehash(t *rtype, p unsafe.Pointer, h uintptr) uintptr
 
 // Dummy annotation marking that the value x escapes,
 // for use in cases where the reflect code is so clever that

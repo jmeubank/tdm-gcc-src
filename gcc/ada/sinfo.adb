@@ -269,6 +269,14 @@ package body Sinfo is
       return Node3 (N);
    end Array_Aggregate;
 
+   function Aspect_On_Partial_View
+      (N : Node_Id) return Boolean is
+   begin
+      pragma Assert (False
+        or else NT (N).Nkind = N_Aspect_Specification);
+      return Flag18 (N);
+   end Aspect_On_Partial_View;
+
    function Aspect_Rep_Item
       (N : Node_Id) return Node_Id is
    begin
@@ -1913,7 +1921,8 @@ package body Sinfo is
         or else NT (N).Nkind = N_Package_Instantiation
         or else NT (N).Nkind = N_Procedure_Call_Statement
         or else NT (N).Nkind = N_Procedure_Instantiation
-        or else NT (N).Nkind = N_Requeue_Statement);
+        or else NT (N).Nkind = N_Requeue_Statement
+        or else NT (N).Nkind = N_Variable_Reference_Marker);
       return Flag1 (N);
    end Is_Elaboration_Checks_OK_Node;
 
@@ -1932,12 +1941,15 @@ package body Sinfo is
         or else NT (N).Nkind = N_Attribute_Reference
         or else NT (N).Nkind = N_Call_Marker
         or else NT (N).Nkind = N_Entry_Call_Statement
+        or else NT (N).Nkind = N_Expanded_Name
         or else NT (N).Nkind = N_Function_Call
         or else NT (N).Nkind = N_Function_Instantiation
+        or else NT (N).Nkind = N_Identifier
         or else NT (N).Nkind = N_Package_Instantiation
         or else NT (N).Nkind = N_Procedure_Call_Statement
         or else NT (N).Nkind = N_Procedure_Instantiation
-        or else NT (N).Nkind = N_Requeue_Statement);
+        or else NT (N).Nkind = N_Requeue_Statement
+        or else NT (N).Nkind = N_Variable_Reference_Marker);
       return Flag3 (N);
    end Is_Elaboration_Warnings_OK_Node;
 
@@ -1997,6 +2009,14 @@ package body Sinfo is
         or else NT (N).Nkind = N_Pragma);
       return Flag2 (N);
    end Is_Generic_Contract_Pragma;
+
+   function Is_Homogeneous_Aggregate
+     (N : Node_Id) return Boolean is
+   begin
+      pragma Assert (False
+        or else NT (N).Nkind = N_Aggregate);
+      return Flag14 (N);
+   end Is_Homogeneous_Aggregate;
 
    function Is_Ignored
       (N : Node_Id) return Boolean is
@@ -2130,7 +2150,7 @@ package body Sinfo is
    begin
       pragma Assert (False
         or else NT (N).Nkind = N_Variable_Reference_Marker);
-      return Flag1 (N);
+      return Flag4 (N);
    end Is_Read;
 
    function Is_Source_Call
@@ -2156,7 +2176,8 @@ package body Sinfo is
         or else NT (N).Nkind = N_Package_Instantiation
         or else NT (N).Nkind = N_Procedure_Call_Statement
         or else NT (N).Nkind = N_Procedure_Instantiation
-        or else NT (N).Nkind = N_Requeue_Statement);
+        or else NT (N).Nkind = N_Requeue_Statement
+        or else NT (N).Nkind = N_Variable_Reference_Marker);
       return Flag2 (N);
    end Is_SPARK_Mode_On_Node;
 
@@ -2216,7 +2237,7 @@ package body Sinfo is
    begin
       pragma Assert (False
         or else NT (N).Nkind = N_Variable_Reference_Marker);
-      return Flag2 (N);
+      return Flag5 (N);
    end Is_Write;
 
    function Iteration_Scheme
@@ -3091,6 +3112,14 @@ package body Sinfo is
       return Flag18 (N);
    end Rounded_Result;
 
+   function Save_Invocation_Graph_Of_Body
+      (N : Node_Id) return Boolean is
+   begin
+      pragma Assert (False
+        or else NT (N).Nkind = N_Compilation_Unit);
+      return Flag1 (N);
+   end Save_Invocation_Graph_Of_Body;
+
    function SCIL_Controlling_Tag
       (N : Node_Id) return Node_Id is
    begin
@@ -3749,6 +3778,14 @@ package body Sinfo is
         or else NT (N).Nkind = N_Enumeration_Representation_Clause);
       Set_Node3_With_Parent (N, Val);
    end Set_Array_Aggregate;
+
+   procedure Set_Aspect_On_Partial_View
+      (N : Node_Id; Val : Boolean := True) is
+   begin
+      pragma Assert (False
+        or else NT (N).Nkind = N_Aspect_Specification);
+      Set_Flag18 (N, Val);
+   end Set_Aspect_On_Partial_View;
 
    procedure Set_Aspect_Rep_Item
       (N : Node_Id; Val : Node_Id) is
@@ -5387,7 +5424,8 @@ package body Sinfo is
         or else NT (N).Nkind = N_Package_Instantiation
         or else NT (N).Nkind = N_Procedure_Call_Statement
         or else NT (N).Nkind = N_Procedure_Instantiation
-        or else NT (N).Nkind = N_Requeue_Statement);
+        or else NT (N).Nkind = N_Requeue_Statement
+        or else NT (N).Nkind = N_Variable_Reference_Marker);
       Set_Flag1 (N, Val);
    end Set_Is_Elaboration_Checks_OK_Node;
 
@@ -5406,12 +5444,15 @@ package body Sinfo is
         or else NT (N).Nkind = N_Attribute_Reference
         or else NT (N).Nkind = N_Call_Marker
         or else NT (N).Nkind = N_Entry_Call_Statement
+        or else NT (N).Nkind = N_Expanded_Name
         or else NT (N).Nkind = N_Function_Call
         or else NT (N).Nkind = N_Function_Instantiation
+        or else NT (N).Nkind = N_Identifier
         or else NT (N).Nkind = N_Package_Instantiation
         or else NT (N).Nkind = N_Procedure_Call_Statement
         or else NT (N).Nkind = N_Procedure_Instantiation
-        or else NT (N).Nkind = N_Requeue_Statement);
+        or else NT (N).Nkind = N_Requeue_Statement
+        or else NT (N).Nkind = N_Variable_Reference_Marker);
       Set_Flag3 (N, Val);
    end Set_Is_Elaboration_Warnings_OK_Node;
 
@@ -5471,6 +5512,14 @@ package body Sinfo is
         or else NT (N).Nkind = N_Pragma);
       Set_Flag2 (N, Val);
    end Set_Is_Generic_Contract_Pragma;
+
+   procedure Set_Is_Homogeneous_Aggregate
+      (N : Node_Id; Val : Boolean := True) is
+   begin
+      pragma Assert (False
+        or else NT (N).Nkind = N_Aggregate);
+      Set_Flag14 (N, Val);
+   end Set_Is_Homogeneous_Aggregate;
 
    procedure Set_Is_Ignored
       (N : Node_Id; Val : Boolean := True) is
@@ -5604,7 +5653,7 @@ package body Sinfo is
    begin
       pragma Assert (False
         or else NT (N).Nkind = N_Variable_Reference_Marker);
-      Set_Flag1 (N, Val);
+      Set_Flag4 (N, Val);
    end Set_Is_Read;
 
    procedure Set_Is_Source_Call
@@ -5630,7 +5679,8 @@ package body Sinfo is
         or else NT (N).Nkind = N_Package_Instantiation
         or else NT (N).Nkind = N_Procedure_Call_Statement
         or else NT (N).Nkind = N_Procedure_Instantiation
-        or else NT (N).Nkind = N_Requeue_Statement);
+        or else NT (N).Nkind = N_Requeue_Statement
+        or else NT (N).Nkind = N_Variable_Reference_Marker);
       Set_Flag2 (N, Val);
    end Set_Is_SPARK_Mode_On_Node;
 
@@ -5692,7 +5742,7 @@ package body Sinfo is
    begin
       pragma Assert (False
         or else NT (N).Nkind = N_Variable_Reference_Marker);
-      Set_Flag2 (N, Val);
+      Set_Flag5 (N, Val);
    end Set_Is_Write;
 
    procedure Set_Iteration_Scheme
@@ -6567,6 +6617,14 @@ package body Sinfo is
       Set_Flag18 (N, Val);
    end Set_Rounded_Result;
 
+   procedure Set_Save_Invocation_Graph_Of_Body
+      (N : Node_Id; Val : Boolean := True) is
+   begin
+      pragma Assert (False
+        or else NT (N).Nkind = N_Compilation_Unit);
+      Set_Flag1 (N, Val);
+   end Set_Save_Invocation_Graph_Of_Body;
+
    procedure Set_SCIL_Controlling_Tag
       (N : Node_Id; Val : Node_Id) is
    begin
@@ -7267,6 +7325,44 @@ package body Sinfo is
              T = V9  or else
              T = V10 or else
              T = V11;
+   end Nkind_In;
+
+   function Nkind_In
+     (T   : Node_Kind;
+      V1  : Node_Kind;
+      V2  : Node_Kind;
+      V3  : Node_Kind;
+      V4  : Node_Kind;
+      V5  : Node_Kind;
+      V6  : Node_Kind;
+      V7  : Node_Kind;
+      V8  : Node_Kind;
+      V9  : Node_Kind;
+      V10 : Node_Kind;
+      V11 : Node_Kind;
+      V12 : Node_Kind;
+      V13 : Node_Kind;
+      V14 : Node_Kind;
+      V15 : Node_Kind;
+      V16 : Node_Kind) return Boolean
+   is
+   begin
+      return T = V1  or else
+             T = V2  or else
+             T = V3  or else
+             T = V4  or else
+             T = V5  or else
+             T = V6  or else
+             T = V7  or else
+             T = V8  or else
+             T = V9  or else
+             T = V10 or else
+             T = V11 or else
+             T = V12 or else
+             T = V13 or else
+             T = V14 or else
+             T = V15 or else
+             T = V16;
    end Nkind_In;
 
    --------------------------

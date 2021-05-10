@@ -1,5 +1,5 @@
 /* Data flow functions for trees.
-   Copyright (C) 2001-2019 Free Software Foundation, Inc.
+   Copyright (C) 2001-2020 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@redhat.com>
 
 This file is part of GCC.
@@ -61,23 +61,23 @@ static void collect_dfa_stats (struct dfa_stats_d *);
 /* Renumber all of the gimple stmt uids.  */
 
 void
-renumber_gimple_stmt_uids (void)
+renumber_gimple_stmt_uids (struct function *fun)
 {
   basic_block bb;
 
-  set_gimple_stmt_max_uid (cfun, 0);
-  FOR_ALL_BB_FN (bb, cfun)
+  set_gimple_stmt_max_uid (fun, 0);
+  FOR_ALL_BB_FN (bb, fun)
     {
       gimple_stmt_iterator bsi;
       for (bsi = gsi_start_phis (bb); !gsi_end_p (bsi); gsi_next (&bsi))
 	{
 	  gimple *stmt = gsi_stmt (bsi);
-	  gimple_set_uid (stmt, inc_gimple_stmt_max_uid (cfun));
+	  gimple_set_uid (stmt, inc_gimple_stmt_max_uid (fun));
 	}
       for (bsi = gsi_start_bb (bb); !gsi_end_p (bsi); gsi_next (&bsi))
 	{
 	  gimple *stmt = gsi_stmt (bsi);
-	  gimple_set_uid (stmt, inc_gimple_stmt_max_uid (cfun));
+	  gimple_set_uid (stmt, inc_gimple_stmt_max_uid (fun));
 	}
     }
 }
@@ -503,7 +503,7 @@ get_ref_base_and_extent (tree exp, poly_int64_pod *poffset,
 		poly_offset_int woffset
 		  = wi::sext (wi::to_poly_offset (index)
 			      - wi::to_poly_offset (low_bound),
-			      TYPE_PRECISION (TREE_TYPE (index)));
+			      TYPE_PRECISION (sizetype));
 		woffset *= wi::to_offset (unit_size);
 		woffset <<= LOG2_BITS_PER_UNIT;
 		bit_offset += woffset;
@@ -564,7 +564,7 @@ get_ref_base_and_extent (tree exp, poly_int64_pod *poffset,
 		      {
 			poly_offset_int woffset
 			  = wi::sext (omin - lbound,
-				      TYPE_PRECISION (TREE_TYPE (index)));
+				      TYPE_PRECISION (sizetype));
 			woffset *= wi::to_offset (unit_size);
 			woffset <<= LOG2_BITS_PER_UNIT;
 			bit_offset += woffset;
@@ -817,7 +817,7 @@ get_addr_base_and_unit_offset_1 (tree exp, poly_int64_pod *poffset,
 		poly_offset_int woffset
 		  = wi::sext (wi::to_poly_offset (index)
 			      - wi::to_poly_offset (low_bound),
-			      TYPE_PRECISION (TREE_TYPE (index)));
+			      TYPE_PRECISION (sizetype));
 		woffset *= wi::to_offset (unit_size);
 		byte_offset += woffset.force_shwi ();
 	      }

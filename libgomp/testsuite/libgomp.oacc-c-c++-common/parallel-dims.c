@@ -1,6 +1,8 @@
 /* OpenACC parallelism dimensions clauses: num_gangs, num_workers,
    vector_length.  */
 
+/* See also '../libgomp.oacc-fortran/parallel-dims.f90'.  */
+
 #include <limits.h>
 #include <openacc.h>
 #include <gomp-constants.h>
@@ -12,7 +14,8 @@ static unsigned int __attribute__ ((optimize ("O2"))) acc_gang ()
 {
   if (acc_on_device ((int) acc_device_host))
     return 0;
-  else if (acc_on_device ((int) acc_device_nvidia))
+  else if (acc_on_device ((int) acc_device_nvidia)
+	   || acc_on_device ((int) acc_device_radeon))
     return __builtin_goacc_parlevel_id (GOMP_DIM_GANG);
   else
     __builtin_abort ();
@@ -23,7 +26,8 @@ static unsigned int __attribute__ ((optimize ("O2"))) acc_worker ()
 {
   if (acc_on_device ((int) acc_device_host))
     return 0;
-  else if (acc_on_device ((int) acc_device_nvidia))
+  else if (acc_on_device ((int) acc_device_nvidia)
+	   || acc_on_device ((int) acc_device_radeon))
     return __builtin_goacc_parlevel_id (GOMP_DIM_WORKER);
   else
     __builtin_abort ();
@@ -34,7 +38,8 @@ static unsigned int __attribute__ ((optimize ("O2"))) acc_vector ()
 {
   if (acc_on_device ((int) acc_device_host))
     return 0;
-  else if (acc_on_device ((int) acc_device_nvidia))
+  else if (acc_on_device ((int) acc_device_nvidia)
+	   || acc_on_device ((int) acc_device_radeon))
     return __builtin_goacc_parlevel_id (GOMP_DIM_VECTOR);
   else
     __builtin_abort ();
@@ -44,6 +49,8 @@ static unsigned int __attribute__ ((optimize ("O2"))) acc_vector ()
 int main ()
 {
   acc_init (acc_device_default);
+
+  /* OpenACC parallel construct.  */
 
   /* Non-positive value.  */
 
@@ -278,6 +285,12 @@ int main ()
 	  /* The GCC nvptx back end enforces num_workers (32).  */
 	  workers_actual = 32;
 	}
+      else if (acc_on_device (acc_device_radeon))
+	{
+	  /* The GCC GCN back end is limited to num_workers (16).
+	     Temporarily set this to 1 until multiple workers are permitted. */
+	  workers_actual = 1; // 16;
+	}
       else
 	__builtin_abort ();
 #pragma acc loop worker reduction (min: gangs_min, workers_min, vectors_min) reduction (max: gangs_max, workers_max, vectors_max)
@@ -324,6 +337,11 @@ int main ()
 	  /* We're actually executing with num_workers (32).  */
 	  /* workers_actual = 32; */
 	}
+      else if (acc_on_device (acc_device_radeon))
+	{
+	  /* The GCC GCN back end is limited to num_workers (16).  */
+	  workers_actual = 16;
+	}
       else
 	__builtin_abort ();
 #pragma acc loop worker reduction (min: gangs_min, workers_min, vectors_min) reduction (max: gangs_max, workers_max, vectors_max)
@@ -362,6 +380,11 @@ int main ()
 	{
 	  /* The GCC nvptx back end enforces vector_length (32).  */
 	  vectors_actual = 1024;
+	}
+      else if (acc_on_device (acc_device_radeon))
+	{
+	  /* The GCC GCN back end enforces vector_length (1): autovectorize. */
+	  vectors_actual = 1;
 	}
       else
 	__builtin_abort ();
@@ -403,6 +426,13 @@ int main ()
 	  /* The GCC nvptx back end enforces vector_length (32).  */
 	  vectors_actual = 32;
 	}
+      else if (acc_on_device (acc_device_radeon))
+	{
+	  /* Because of the way vectors are implemented for GCN, a vector loop
+	     containing a seq routine call will not vectorize calls to that
+	     routine.  Hence, we'll only get one "vector".  */
+	  vectors_actual = 1;
+	}
       else
 	__builtin_abort ();
 #pragma acc loop vector reduction (min: gangs_min, workers_min, vectors_min) reduction (max: gangs_max, workers_max, vectors_max)
@@ -428,6 +458,9 @@ int main ()
     /* With nvptx offloading, multi-level reductions apparently are very slow
        in the following case.  So, limit ourselves here.  */
     if (acc_get_device_type () == acc_device_nvidia)
+      gangs = 3;
+    /* Similar appears to be true for GCN.  */
+    if (acc_get_device_type () == acc_device_radeon)
       gangs = 3;
     int gangs_actual = gangs;
 #define WORKERS 3
@@ -455,6 +488,13 @@ int main ()
 	  /* The GCC nvptx back end enforces vector_length (32).  */
 	  vectors_actual = 32;
 	}
+      else if (acc_on_device (acc_device_radeon))
+	{
+	  /* Temporary setting, until multiple workers are permitted.  */
+	  workers_actual = 1;
+	  /* See above comments about GCN vectors_actual.  */
+	  vectors_actual = 1;
+	}
       else
 	__builtin_abort ();
 #pragma acc loop gang reduction (min: gangs_min, workers_min, vectors_min) reduction (max: gangs_max, workers_max, vectors_max)
@@ -477,6 +517,8 @@ int main ()
 #undef WORKERS
   }
 
+
+  /* OpenACC kernels construct.  */
 
   /* We can't test parallelized OpenACC kernels constructs in this way: use of
      the acc_gang, acc_worker, acc_vector functions will make the construct
@@ -541,6 +583,73 @@ int main ()
       __builtin_abort ();
 #undef VECTORS
 #undef WORKERS
+  }
+
+
+  /* OpenACC serial construct.  */
+
+  /* GR, WS, VS.  */
+  {
+    int gangs_min, gangs_max, workers_min, workers_max, vectors_min, vectors_max;
+    gangs_min = workers_min = vectors_min = INT_MAX;
+    gangs_max = workers_max = vectors_max = INT_MIN;
+#pragma acc serial /* { dg-warning "using vector_length \\(32\\), ignoring 1" "" { target openacc_nvidia_accel_selected } } */ \
+  reduction (min: gangs_min, workers_min, vectors_min) reduction (max: gangs_max, workers_max, vectors_max)
+    {
+      for (int i = 100; i > -100; i--)
+	{
+	  gangs_min = gangs_max = acc_gang ();
+	  workers_min = workers_max = acc_worker ();
+	  vectors_min = vectors_max = acc_vector ();
+	}
+    }
+    if (gangs_min != 0 || gangs_max != 1 - 1
+	|| workers_min != 0 || workers_max != 1 - 1
+	|| vectors_min != 0 || vectors_max != 1 - 1)
+      __builtin_abort ();
+  }
+
+  /* Composition of GP, WP, VP.  */
+  {
+    int vectors_actual = 1;  /* Implicit 'vector_length (1)' clause.  */
+    int gangs_min, gangs_max, workers_min, workers_max, vectors_min, vectors_max;
+    gangs_min = workers_min = vectors_min = INT_MAX;
+    gangs_max = workers_max = vectors_max = INT_MIN;
+#pragma acc serial copy (vectors_actual) /* { dg-warning "using vector_length \\(32\\), ignoring 1" "" { target openacc_nvidia_accel_selected } } */ \
+  copy (gangs_min, gangs_max, workers_min, workers_max, vectors_min, vectors_max)
+    {
+      if (acc_on_device (acc_device_nvidia))
+	{
+	  /* The GCC nvptx back end enforces vector_length (32).  */
+	  /* It's unclear if that's actually permissible here;
+	     <https://github.com/OpenACC/openacc-spec/issues/238> "OpenACC
+	     'serial' construct might not actually be serial".  */
+	  vectors_actual = 32;
+	}
+#pragma acc loop gang reduction (min: gangs_min, workers_min, vectors_min) reduction (max: gangs_max, workers_max, vectors_max)
+      for (int i = 100; i > -100; i--)
+#pragma acc loop worker reduction (min: gangs_min, workers_min, vectors_min) reduction (max: gangs_max, workers_max, vectors_max)
+	for (int j = 100; j > -100; j--)
+#pragma acc loop vector reduction (min: gangs_min, workers_min, vectors_min) reduction (max: gangs_max, workers_max, vectors_max)
+	  for (int k = 100 * vectors_actual; k > -100 * vectors_actual; k--)
+	    {
+	      gangs_min = gangs_max = acc_gang ();
+	      workers_min = workers_max = acc_worker ();
+	      vectors_min = vectors_max = acc_vector ();
+	    }
+    }
+    if (acc_get_device_type () == acc_device_nvidia)
+      {
+	if (vectors_actual != 32)
+	  __builtin_abort ();
+      }
+    else
+      if (vectors_actual != 1)
+	__builtin_abort ();
+    if (gangs_min != 0 || gangs_max != 1 - 1
+	|| workers_min != 0 || workers_max != 1 - 1
+	|| vectors_min != 0 || vectors_max != vectors_actual - 1)
+      __builtin_abort ();
   }
 
 

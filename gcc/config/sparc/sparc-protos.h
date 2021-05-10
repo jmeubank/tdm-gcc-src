@@ -1,5 +1,5 @@
 /* Prototypes of target machine for SPARC.
-   Copyright (C) 1999-2019 Free Software Foundation, Inc.
+   Copyright (C) 1999-2020 Free Software Foundation, Inc.
    Contributed by Michael Tiemann (tiemann@cygnus.com).
    64-bit SPARC-V9 support by Michael Tiemann, Jim Wilson, and Doug Evans,
    at Cygnus Support.
@@ -69,6 +69,7 @@ extern void sparc_split_reg_mem (rtx, rtx, machine_mode);
 extern void sparc_split_mem_reg (rtx, rtx, machine_mode);
 extern int sparc_split_reg_reg_legitimate (rtx, rtx);
 extern void sparc_split_reg_reg (rtx, rtx, machine_mode);
+extern const char *output_load_pcrel_sym (rtx *);
 extern const char *output_ubranch (rtx, rtx_insn *);
 extern const char *output_cbranch (rtx, rtx, int, int, int, rtx_insn *);
 extern const char *output_return (rtx_insn *);
@@ -85,7 +86,6 @@ extern int mems_ok_for_ldd_peep (rtx, rtx, rtx);
 extern rtx widen_mem_for_ldd_peep (rtx, rtx, machine_mode);
 extern int empty_delay_slot (rtx_insn *);
 extern int emit_cbcond_nop (rtx_insn *);
-extern int eligible_for_call_delay (rtx_insn *);
 extern int eligible_for_return_delay (rtx_insn *);
 extern int eligible_for_sibcall_delay (rtx_insn *);
 extern int emit_move_sequence (rtx, machine_mode);

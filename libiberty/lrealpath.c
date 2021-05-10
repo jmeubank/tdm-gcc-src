@@ -1,7 +1,7 @@
 /* Libiberty realpath.  Like realpath, but more consistent behavior.
    Based on gdb_realpath from GDB.
 
-   Copyright (C) 2003-2019 Free Software Foundation, Inc.
+   Copyright (C) 2003-2020 Free Software Foundation, Inc.
 
    This file is part of the libiberty library.
 
@@ -138,26 +138,15 @@ lrealpath (const char *filename)
   {
     char buf[MAX_PATH];
     char* basename;
-    char* slash;
     DWORD len = GetFullPathName (filename, MAX_PATH, buf, &basename);
     if (len == 0 || len > MAX_PATH - 1)
       return strdup (filename);
     else
       {
-	/* Turn all back slashes back back into forward slashes
-	   and don't make it all lowercase.
-	   Rationale:
-	   Windows is as happy with / as it is with \. This will
-	   have been built using Cygwin, MSYS* or cross-compiled
-	   from a system where dirsep is / so it is cleaner just
-	   to keep the dirseps as / (and the case un-modified).
-	   This way, the value will be consistent with the build
-	   system and string operations (be they internal to this
-	   software or external to it, e.g. processing map files
-	   with sed) work as expected.  */
-	slash = buf;
-	while ((slash = strchr(slash,'\\')) !=  NULL)
-	  *slash = '/';
+	/* The file system is case-preserving but case-insensitive,
+	   Canonicalize to lowercase, using the codepage associated
+	   with the process locale.  */
+        CharLowerBuff (buf, len);
         return strdup (buf);
       }
   }

@@ -1,5 +1,5 @@
 /* Set up combined include path chain for the preprocessor.
-   Copyright (C) 1986-2019 Free Software Foundation, Inc.
+   Copyright (C) 1986-2020 Free Software Foundation, Inc.
 
    Broken out of cppinit.c and cppfiles.c and rewritten Mar 2003.
 
@@ -183,7 +183,8 @@ add_standard_paths (const char *sysroot, const char *iprefix,
 	      str = concat (sysroot_no_trailing_dir_separator, p->fname, NULL);
 	      free (sysroot_no_trailing_dir_separator);
 	    }
-	  if (relocated && !filename_ncmp (p->fname, cpp_PREFIX, cpp_PREFIX_len))
+	  else if (!p->add_sysroot && relocated
+		   && !filename_ncmp (p->fname, cpp_PREFIX, cpp_PREFIX_len))
 	    {
  	      static const char *relocated_prefix;
 	      char *ostr;

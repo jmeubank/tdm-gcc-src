@@ -1,7 +1,7 @@
 /* Operating system specific defines to be used when targeting GCC for
    hosting on Windows 32/64 via mingw-w64 runtime, using GNU tools and
    the Windows API Library.
-   Copyright (C) 2009-2019 Free Software Foundation, Inc.
+   Copyright (C) 2009-2020 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -90,7 +90,7 @@ along with GCC; see the file COPYING3.  If not see
 #endif
 
 #undef LINK_SPEC
-#define LINK_SPEC SUB_LINK_SPEC " --exclude-libs=libpthread.a %{mwindows:--subsystem windows} \
+#define LINK_SPEC SUB_LINK_SPEC " %{mwindows:--subsystem windows} \
   %{mconsole:--subsystem console} \
   %{shared: %{mdll: %eshared and mdll are not compatible}} \
   %{shared: --shared} %{mdll:--dll} \

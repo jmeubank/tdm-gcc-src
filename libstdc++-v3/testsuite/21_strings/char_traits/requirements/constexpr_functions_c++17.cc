@@ -1,7 +1,7 @@
 // { dg-options "-std=gnu++17" }
 // { dg-do compile { target c++17 } }
 
-// Copyright (C) 2017-2019 Free Software Foundation, Inc.
+// Copyright (C) 2017-2020 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -75,8 +75,10 @@ template<typename CT>
 
 #ifndef __cpp_lib_constexpr_char_traits
 # error Feature-test macro for constexpr char_traits is missing
-#elif __cpp_lib_constexpr_char_traits != 201611
+#elif __cpp_lib_constexpr_char_traits < 201611
 # error Feature-test macro for constexpr char_traits has the wrong value
+#elif __cpp_lib_constexpr_char_traits > 201611 && __cplusplus == 201703
+# error Feature-test macro for constexpr char_traits has wrong value for C++17
 #endif
 
 static_assert( test_assign<std::char_traits<char>>() );

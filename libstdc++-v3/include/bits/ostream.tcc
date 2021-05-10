@@ -1,6 +1,6 @@
 // ostream classes -*- C++ -*-
 
-// Copyright (C) 1997-2019 Free Software Foundation, Inc.
+// Copyright (C) 1997-2020 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -318,10 +318,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<typename _CharT, typename _Traits>
     basic_ostream<_CharT, _Traits>&
-    operator<<(basic_ostream<_CharT, _Traits>& ___out, const char* __s)
+    operator<<(basic_ostream<_CharT, _Traits>& __out, const char* __s)
     {
       if (!__s)
-	___out.setstate(ios_base::badbit);
+	__out.setstate(ios_base::badbit);
       else
 	{
 	  // _GLIBCXX_RESOLVE_LIB_DEFECTS
@@ -339,18 +339,18 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 	      _CharT *__ws = __pg.__get();
 	      for (size_t  __i = 0; __i < __clen; ++__i)
-		__ws[__i] = ___out.widen(__s[__i]);
-	      __ostream_insert(___out, __ws, __clen);
+		__ws[__i] = __out.widen(__s[__i]);
+	      __ostream_insert(__out, __ws, __clen);
 	    }
 	  __catch(__cxxabiv1::__forced_unwind&)
 	    {
-	      ___out._M_setstate(ios_base::badbit);
+	      __out._M_setstate(ios_base::badbit);
 	      __throw_exception_again;
 	    }
 	  __catch(...)
-	    { ___out._M_setstate(ios_base::badbit); }
+	    { __out._M_setstate(ios_base::badbit); }
 	}
-      return ___out;
+      return __out;
     }
 
   // Inhibit implicit instantiations for required instantiations,

@@ -26,7 +26,7 @@ import (
 //   time.Time
 //
 // If the driver supports cursors, a returned Value may also implement the Rows interface
-// in this package. This is used when, for example, when a user selects a cursor
+// in this package. This is used, for example, when a user selects a cursor
 // such as "select cursor(select * from my_table) from dual". If the Rows
 // from the select is closed, the cursor Rows will also be closed.
 type Value interface{}
@@ -255,12 +255,9 @@ type ConnBeginTx interface {
 // SessionResetter may be implemented by Conn to allow drivers to reset the
 // session state associated with the connection and to signal a bad connection.
 type SessionResetter interface {
-	// ResetSession is called while a connection is in the connection
-	// pool. No queries will run on this connection until this method returns.
-	//
-	// If the connection is bad this should return driver.ErrBadConn to prevent
-	// the connection from being returned to the connection pool. Any other
-	// error will be discarded.
+	// ResetSession is called prior to executing a query on the connection
+	// if the connection has been used before. If the driver returns ErrBadConn
+	// the connection is discarded.
 	ResetSession(ctx context.Context) error
 }
 

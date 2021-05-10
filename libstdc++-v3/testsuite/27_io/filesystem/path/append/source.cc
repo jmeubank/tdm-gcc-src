@@ -1,7 +1,7 @@
 // { dg-options "-std=gnu++17" }
 // { dg-do run { target c++17 } }
 
-// Copyright (C) 2018-2019 Free Software Foundation, Inc.
+// Copyright (C) 2018-2020 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -161,6 +161,15 @@ test06()
   test(p2, s.c_str());
 }
 
+void
+test07()
+{
+  path p, p0;
+  std::string_view s;
+  p /= s; // PR libstdc++/97167
+  compare_paths(p, p0);
+}
+
 int
 main()
 {
@@ -170,4 +179,5 @@ main()
   test04();
   test05();
   test06();
+  test07();
 }

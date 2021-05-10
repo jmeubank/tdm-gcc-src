@@ -124,10 +124,13 @@ package Opt is
 
    type Ada_Version_Type is (Ada_83, Ada_95, Ada_2005, Ada_2012, Ada_2020);
    pragma Ordered (Ada_Version_Type);
+   pragma Convention (C, Ada_Version_Type);
    --  Versions of Ada for Ada_Version below. Note that these are ordered,
    --  so that tests like Ada_Version >= Ada_95 are legitimate and useful.
    --  Think twice before using "="; Ada_Version >= Ada_2012 is more likely
    --  what you want, because it will apply to future versions of the language.
+
+   --  WARNING: There is a matching C declaration of this type in fe.h
 
    Ada_Version_Default : constant Ada_Version_Type := Ada_2012;
    pragma Warnings (Off, Ada_Version_Default);
@@ -140,6 +143,8 @@ package Opt is
    --  Current Ada version for compiler, as set by configuration pragmas,
    --  compiler switches, or implicitly (to Ada_Version_Runtime) when a
    --  predefined or internal file is compiled.
+
+   --  WARNING: There is a matching C declaration of this variable in fe.h
 
    Ada_Version_Pragma : Node_Id := Empty;
    --  Reflects the Ada_xxx pragma that resulted in setting Ada_Version. Used
@@ -190,6 +195,11 @@ package Opt is
    Address_Is_Private : Boolean := False;
    --  GNAT, GNATBIND
    --  Set True if package System has the line "type Address is private;"
+
+   Aggregate_Individually_Assign : Boolean := False;
+   --  GNAT
+   --  Set True if record aggregates are to be always converted into assignment
+   --  statements. Set through the corresponding pragma.
 
    All_Errors_Mode : Boolean := False;
    --  GNAT
@@ -267,6 +277,8 @@ package Opt is
    --  default mode for gcc targets, so it is True on such targets unless the
    --  switches -gnatN or -gnatd.z are used. See circuitry in gnat1drv for the
    --  exact conditions for setting this switch.
+
+   --  WARNING: There is a matching C declaration of this variable in fe.h
 
    Bind_Alternate_Main_Name : Boolean := False;
    --  GNATBIND
@@ -453,6 +465,8 @@ package Opt is
    --  of the original source code. Causes debugging information to be
    --  written with respect to the generated code file that is written.
 
+   --  WARNING: There is a matching C declaration of this variable in fe.h
+
    Default_Pool : Node_Id := Empty;
    --  GNAT
    --  Used to record the storage pool name (or null literal) that is the
@@ -496,12 +510,13 @@ package Opt is
    Display_Compilation_Progress : Boolean := False;
    --  GNATMAKE, GPRBUILD
    --  Set True (-d switch) to display information on progress while compiling
-   --  files. Internal flag to be used in conjunction with an IDE (e.g GPS).
+   --  files. Internal flag to be used in conjunction with an IDE
+   --  (e.g GNAT Studio).
 
    type Distribution_Stub_Mode_Type is
    --  GNAT
      (No_Stubs,
-      --  Normal mode, no generation/compilation of distribution stubs
+      --  Normal mode, no generation of distribution stubs
 
       Generate_Receiver_Stub_Body,
       --  The unit being compiled is the RCI body, and the compiler will
@@ -513,8 +528,8 @@ package Opt is
 
    Distribution_Stub_Mode : Distribution_Stub_Mode_Type := No_Stubs;
    --  GNAT
-   --  This enumeration variable indicates the five states of distribution
-   --  annex stub generation/compilation.
+   --  This enumeration variable indicates the three states of distribution
+   --  annex stub generation.
 
    Do_Not_Execute : Boolean := False;
    --  GNATMAKE
@@ -589,10 +604,14 @@ package Opt is
    --  associated with exception messages (in particular range and index
    --  checks).
 
+   --  WARNING: There is a matching C declaration of this variable in fe.h
+
    Exception_Locations_Suppressed : Boolean := False;
    --  GNAT
    --  Set to True if a Suppress_Exception_Locations configuration pragma is
    --  currently active.
+
+   --  WARNING: There is a matching C declaration of this variable in fe.h
 
    type Exception_Mechanism_Type is
    --  Determines the kind of mechanism used to handle exceptions
@@ -615,8 +634,9 @@ package Opt is
       --  Similar to Back_End_ZCX with respect to the front-end processing
       --  of regular and AT-END handlers. A setjmp/longjmp scheme is used to
       --  propagate and setup handler contexts on regular execution paths.
-
    pragma Convention (C, Exception_Mechanism_Type);
+
+   --  WARNING: There is a matching C declaration of this type in fe.h
 
    Exception_Mechanism : Exception_Mechanism_Type := Front_End_SJLJ;
    --  GNAT
@@ -624,12 +644,16 @@ package Opt is
    --  (Frontend_Exceptions + ZCX_By_Default). The C convention is there to
    --  allow access by gigi.
 
+   --  WARNING: There is a matching C declaration of this variable in fe.h
+
    function Back_End_Exceptions return Boolean;
    function Front_End_Exceptions return Boolean;
    function ZCX_Exceptions return Boolean;
    function SJLJ_Exceptions return Boolean;
    --  GNAT
    --  Various properties of the active Exception_Mechanism
+
+   --  WARNING: There is a matching C declaration of these subprograms in fe.h
 
    Exception_Tracebacks : Boolean := False;
    --  GNATBIND
@@ -746,9 +770,9 @@ package Opt is
    --  file name with extension stripped.
 
    Generate_C_Code : Boolean := False;
-   --  GNAT
+   --  GNAT, GNATBIND
    --  If True, the Cprint circuitry to generate C code output is activated.
-   --  Set True by use of -gnateg or -gnatd.V.
+   --  Set True by use of -gnateg or -gnatd.V for GNAT, and -G for GNATBIND.
 
    Generate_CodePeer_Messages : Boolean := False;
    --  GNAT
@@ -774,6 +798,8 @@ package Opt is
    --  GNAT
    --  True when switch -fdump-scos is used. When True, a table of instances is
    --  included in SCOs.
+
+   --  WARNING: There is a matching C declaration of this variable in fe.h
 
    Generating_Code : Boolean := False;
    --  GNAT
@@ -947,6 +973,11 @@ package Opt is
    --  Set to True when the pre-18.x access-before-elaboration model is to be
    --  used. Modified by use of -gnatH.
 
+   Legacy_Elaboration_Order : Boolean := False;
+   --  GNATBIND
+   --  Set to True when the pre-20.x elaboration-order model is to be used.
+   --  Modified by use of -H.
+
    Link_Only : Boolean := False;
    --  GNATMAKE, GPRBUILD
    --  Set to True to skip compile and bind steps (except when Bind_Only is
@@ -996,6 +1027,8 @@ package Opt is
    --    2 = list rep info for all user-defined types and objects
    --    3 = like 2, but variable fields are decoded symbolically
    --    4 = like 3, but list rep info for relevant compiler-generated types
+
+   --  WARNING: There is a matching C declaration of this variable in fe.h
 
    List_Representation_Info_To_File : Boolean := False;
    --  GNAT
@@ -1115,6 +1148,12 @@ package Opt is
    --  Maximum number of processes that should be spawned to carry out
    --  compilations.
 
+   Minimal_Binder : Boolean := False;
+   --  GNATBIND
+   --  Set to True to suppress the generation of objects by the binder that
+   --  are not strictly required for a program to run. Intended for ZFP
+   --  applications that have tight memory constraints.
+
    Minimal_Recompilation : Boolean := False;
    --  GNATMAKE
    --  Set to True if minimal recompilation mode requested
@@ -1191,6 +1230,8 @@ package Opt is
    No_Strict_Aliasing : Boolean := False;
    --  GNAT
    --  Set True if pragma No_Strict_Aliasing with no parameters encountered.
+
+   --  WARNING: There is a matching C declaration of this variable in fe.h
 
    No_Tagged_Streams : Node_Id := Empty;
    --  GNAT
@@ -1524,6 +1565,8 @@ package Opt is
    --  GNAT
    --  Set to True if -gnatp (suppress all checks) switch present.
 
+   --  WARNING: There is a matching C declaration of this variable in fe.h
+
    Suppress_Options : Suppress_Record;
    --  GNAT
    --  Indicates outer level setting of check suppression. This initializes
@@ -1730,6 +1773,12 @@ package Opt is
    --  including warnings on Ada 2012 obsolescent features used in Ada 2012
    --  mode. Modified by use of -gnatwy/Y.
 
+   Warn_On_Ada_202X_Compatibility : Boolean := True;
+   --  GNAT
+   --  Set to True to generate all warnings on Ada 202X compatibility issues,
+   --  including warnings on Ada 202X obsolescent features used in Ada 202X
+   --  mode. ???There is no warning switch for this yet.
+
    Warn_On_All_Unread_Out_Parameters : Boolean := False;
    --  GNAT
    --  Set to True to generate warnings in all cases where a variable is
@@ -1933,10 +1982,6 @@ package Opt is
    --  which requires pragma Warnings to be stored for the formal verification
    --  backend.
 
-   Warnings_As_Errors_Count : Natural;
-   --  GNAT
-   --  Number of entries stored in Warnings_As_Errors table
-
    Wide_Character_Encoding_Method : WC_Encoding_Method := WCEM_Brackets;
    --  GNAT, GNATBIND
    --  Method used for encoding wide characters in the source program. See
@@ -1979,7 +2024,7 @@ package Opt is
    --  set by the command line switches -gnat83/95/2005/2012, and possibly
    --  modified by the use of configuration pragmas Ada_*. This switch is used
    --  to set the initial value for Ada_Version mode at the start of analysis
-   --  of a unit.  Note however that the setting of this flag is ignored for
+   --  of a unit. Note however that the setting of this flag is ignored for
    --  internal and predefined units (which are always compiled in the most up
    --  to date version of Ada).
 
@@ -2147,10 +2192,6 @@ package Opt is
    --  is ignored for internal and predefined units (which are always compiled
    --  with the standard Size semantics).
 
-   Warnings_As_Errors_Count_Config : Natural;
-   --  GNAT
-   --  Count of pattern strings stored from Warning_As_Error pragmas
-
    type Config_Switches_Type is private;
    --  Type used to save values of the switches set from Config values
 
@@ -2257,16 +2298,24 @@ package Opt is
    ---------------------------
 
    --  The following array would more reasonably be located in Err_Vars or
-   --  Errour, but we put them here to deal with licensing issues (we need
+   --  Errout, but we put them here to deal with licensing issues (we need
    --  this to have the GPL exception licensing, since these variables and
    --  subprograms are accessed from units with this licensing).
 
    Warnings_As_Errors : array (1 .. 10_000) of String_Ptr;
-   --  Table for recording Warning_As_Error pragmas as they are processed.
-   --  It would be nicer to use Table, but there are circular elaboration
-   --  problems if we try to do this, and an attempt to find some other
-   --  appropriately licensed unit to declare this as a Table failed with
-   --  various elaboration circularities. Memory is getting cheap these days!
+   --  Table for recording Warning_As_Error pragmas as they are processed. It
+   --  would be nicer to use Table, but there are circular elaboration problems
+   --  if we try to do this, and an attempt to find some other appropriately
+   --  licensed unit to declare this as a Table failed with various elaboration
+   --  circularities.
+
+   Warnings_As_Errors_Count : Natural;
+   --  GNAT
+   --  Number of entries stored in Warnings_As_Errors table
+
+   Warnings_As_Errors_Count_Config : Natural;
+   --  GNAT
+   --  Count of pattern strings stored from Warning_As_Error pragmas
 
    ---------------
    -- GNAT_Mode --
@@ -2275,6 +2324,8 @@ package Opt is
    GNAT_Mode : Boolean := False;
    --  GNAT
    --  True if compiling in GNAT system mode (-gnatg switch)
+
+   --  WARNING: There is a matching C declaration of this variable in fe.h
 
    GNAT_Mode_Config : Boolean := False;
    --  GNAT

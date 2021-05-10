@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2004-2019 Free Software Foundation, Inc.
+// Copyright (C) 2004-2020 Free Software Foundation, Inc.
 
 // This library is free software; you can redistribute it and/or
 // modify it under the terms of the GNU General Public License as
@@ -208,6 +208,7 @@ check_version(symbol& test, bool added)
       known_versions.push_back("GLIBCXX_3.4.25");
       known_versions.push_back("GLIBCXX_3.4.26");
       known_versions.push_back("GLIBCXX_3.4.27");
+      known_versions.push_back("GLIBCXX_3.4.28");
       known_versions.push_back("CXXABI_1.3");
       known_versions.push_back("CXXABI_LDBL_1.3");
       known_versions.push_back("CXXABI_1.3.1");
@@ -239,7 +240,7 @@ check_version(symbol& test, bool added)
 	test.version_status = symbol::incompatible;
 
       // Check that added symbols are added in the latest pre-release version.
-      bool latestp = (test.version_name == "GLIBCXX_3.4.27"
+      bool latestp = (test.version_name == "GLIBCXX_3.4.28"
 		     || test.version_name == "CXXABI_1.3.12"
 		     || test.version_name == "CXXABI_FLOAT128"
 		     || test.version_name == "CXXABI_TM_1");

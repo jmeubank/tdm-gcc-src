@@ -46,9 +46,10 @@ with System.OS_Constants;
 package System.OS_Interface is
    pragma Preelaborate;
 
-   pragma Linker_Options ("-lpthread");
    pragma Linker_Options ("-lrt");
    --  Needed for clock_getres with glibc versions prior to 2.17
+
+   pragma Linker_Options ("-lpthread");
 
    subtype int            is Interfaces.C.int;
    subtype char           is Interfaces.C.char;
@@ -329,7 +330,7 @@ package System.OS_Interface is
    pragma Import (C, Alternate_Stack, "__gnat_alternate_stack");
    --  The alternate signal stack for stack overflows
 
-   Alternate_Stack_Size : constant := 16 * 1024;
+   Alternate_Stack_Size : constant := 32 * 1024;
    --  This must be in keeping with init.c:__gnat_alternate_stack
 
    function Get_Stack_Base (thread : pthread_t) return Address;

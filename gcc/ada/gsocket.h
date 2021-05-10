@@ -80,9 +80,9 @@
 #define FD_SETSIZE 1024
 
 #ifdef __MINGW32__
-#include "mingw32.h"
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <versionhelpers.h>
 
 #undef  EACCES
 #define EACCES          WSAEACCES
@@ -185,9 +185,8 @@
 #endif
 
 #include <limits.h>
-#ifndef __MINGW32__
-#   include <errno.h>
-#endif
+#include <errno.h>
+#include <stddef.h>
 
 #if defined (__vxworks) && ! defined (__RTP__)
 #include <sys/times.h>
@@ -209,6 +208,7 @@
  */
 #if !(defined (VMS) || defined (__MINGW32__))
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <sys/ioctl.h>
@@ -255,12 +255,7 @@
 # endif
 #endif
 
-#if defined (__FreeBSD__) || defined (__vxworks) || defined(__rtems__) \
- || defined (__DragonFly__) || defined (__NetBSD__) || defined (__OpenBSD__)
-# define Has_Sockaddr_Len 1
-#else
-# define Has_Sockaddr_Len 0
-#endif
+# define Has_Sockaddr_Len (offsetof(struct sockaddr_in, sin_family) != 0)
 
 #if !(defined (_WIN32) || defined (__hpux__) || defined (VMS))
 # define HAVE_INET_PTON

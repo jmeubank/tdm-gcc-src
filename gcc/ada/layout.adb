@@ -435,17 +435,12 @@ package body Layout is
             end;
          end if;
 
-         --  If Esize is set, and RM_Size is not, RM_Size is copied from Esize.
-         --  At least for now this seems reasonable, and is in any case needed
-         --  for compatibility with old versions of gigi.
-
-         if Known_Esize (E) and then Unknown_RM_Size (E) then
-            Set_RM_Size (E, Esize (E));
-         end if;
-
-         --  For array base types, set component size if object size of the
+         --  For array base types, set the component size if object size of the
          --  component type is known and is a small power of 2 (8, 16, 32, 64),
-         --  since this is what will always be used.
+         --  since this is what will always be used, except if a very large
+         --  alignment was specified and so Adjust_Esize_For_Alignment gave up
+         --  because, in this case, the object size is not a multiple of the
+         --  alignment and, therefore, cannot be the component size.
 
          if Ekind (E) = E_Array_Type and then Unknown_Component_Size (E) then
             declare
@@ -458,6 +453,9 @@ package body Layout is
                if Present (CT)
                  and then Is_Scalar_Type (CT)
                  and then Known_Static_Esize (CT)
+                 and then not (Known_Alignment (CT)
+                                and then Alignment_In_Bits (CT) >
+                                           Standard_Long_Long_Integer_Size)
                then
                   declare
                      S : constant Uint := Esize (CT);
@@ -758,9 +756,9 @@ package body Layout is
          end if;
 
          --  Check components. If any component requires a higher alignment,
-         --  then we set that higher alignment in any case. Don't do this if
-         --  we have Optimize_Alignment set to Space. Note that that covers
-         --  the case of packed records, where we already set alignment to 1.
+         --  then we set that higher alignment in any case. Don't do this if we
+         --  have Optimize_Alignment set to Space. Note that covers the case of
+         --  packed records, where we already set alignment to 1.
 
          if not Optimize_Alignment_Space (E) then
             declare

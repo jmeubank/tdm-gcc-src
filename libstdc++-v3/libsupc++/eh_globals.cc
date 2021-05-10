@@ -1,5 +1,5 @@
 // -*- C++ -*- Manage the thread-local exception globals.
-// Copyright (C) 2001-2019 Free Software Foundation, Inc.
+// Copyright (C) 2001-2020 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
@@ -28,7 +28,6 @@
 #include "cxxabi.h"
 #include "unwind-cxx.h"
 #include "bits/gthr.h"
-#include "shmem.h"
 
 #if _GLIBCXX_HOSTED
 using std::free;
@@ -42,7 +41,7 @@ extern "C" void free(void *);
 
 using namespace __cxxabiv1;
 
-#if _GLIBCXX_HAVE_TLS && !defined(__MINGW32__)
+#if _GLIBCXX_HAVE_TLS
 
 namespace
 {
@@ -66,8 +65,7 @@ __cxxabiv1::__cxa_get_globals() _GLIBCXX_NOTHROW
 #else
 
 // Single-threaded fallback buffer.
-__SHMEM_DEFINE(__cxa_eh_globals, eh_globals)
-#define eh_globals __SHMEM_GET(eh_globals)
+static __cxa_eh_globals eh_globals;
 
 #if __GTHREADS
 
@@ -106,18 +104,9 @@ struct __eh_globals_init
       __gthread_key_delete(_M_key);
     _M_init = false;
   }
-
-  __eh_globals_init& operator = (__eh_globals_init& c)
-  {
-    _M_key = c._M_key;
-    _M_init = c._M_init;
-    c._M_init = false;
-    return *this;
-  }
 };
 
-__SHMEM_DEFINE_INIT(__eh_globals_init, init, __eh_globals_init())
-#define init __SHMEM_GET(init)
+static __eh_globals_init init;
 
 extern "C" __cxa_eh_globals*
 __cxxabiv1::__cxa_get_globals_fast() _GLIBCXX_NOTHROW

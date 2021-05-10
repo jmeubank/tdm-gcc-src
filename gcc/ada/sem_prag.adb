@@ -41,6 +41,7 @@ with Elists;    use Elists;
 with Errout;    use Errout;
 with Exp_Dist;  use Exp_Dist;
 with Exp_Util;  use Exp_Util;
+with Expander;  use Expander;
 with Freeze;    use Freeze;
 with Ghost;     use Ghost;
 with Gnatvsn;   use Gnatvsn;
@@ -298,6 +299,21 @@ package body Sem_Prag is
    --  pragma. Entity name for unit and its parents is taken from item in
    --  previous with_clause that mentions the unit.
 
+   procedure Validate_Compile_Time_Warning_Or_Error
+     (N    : Node_Id;
+      Eloc : Source_Ptr);
+   --  Common processing for Compile_Time_Error and Compile_Time_Warning of
+   --  pragma N. Called when the pragma is processed as part of its regular
+   --  analysis but also called after calling the back end to validate these
+   --  pragmas for size and alignment appropriateness.
+
+   procedure Defer_Compile_Time_Warning_Error_To_BE (N : Node_Id);
+   --  N is a pragma Compile_Time_Error or Compile_Warning_Error whose boolean
+   --  expression is not known at compile time during the front end. This
+   --  procedure makes an entry in a table. The actual checking is performed by
+   --  Validate_Compile_Time_Warning_Errors, which is invoked after calling the
+   --  back end.
+
    Dummy : Integer := 0;
    pragma Volatile (Dummy);
    --  Dummy volatile integer used in bodies of ip/rv to prevent optimization
@@ -315,6 +331,41 @@ package body Sem_Prag is
    --  It is there for assisting front end debugging. By placing a Reviewable
    --  pragma in the source program, a breakpoint on rv catches this place in
    --  the source, allowing convenient stepping to the point of interest.
+
+   ------------------------------------------------------
+   -- Table for Defer_Compile_Time_Warning_Error_To_BE --
+   ------------------------------------------------------
+
+   --  The following table collects pragmas Compile_Time_Error and Compile_
+   --  Time_Warning for validation. Entries are made by calls to subprogram
+   --  Defer_Compile_Time_Warning_Error_To_BE, and the call to the procedure
+   --  Validate_Compile_Time_Warning_Errors does the actual error checking
+   --  and posting of warning and error messages. The reason for this delayed
+   --  processing is to take advantage of back-annotations of attributes size
+   --  and alignment values performed by the back end.
+
+   --  Note: the reason we store a Source_Ptr value instead of a Node_Id is
+   --  that by the time Validate_Compile_Time_Warning_Errors is called, Sprint
+   --  will already have modified all Sloc values if the -gnatD option is set.
+
+   type CTWE_Entry is record
+      Eloc  : Source_Ptr;
+      --  Source location used in warnings and error messages
+
+      Prag  : Node_Id;
+      --  Pragma Compile_Time_Error or Compile_Time_Warning
+
+      Scope : Node_Id;
+      --  The scope which encloses the pragma
+   end record;
+
+   package Compile_Time_Warnings_Errors is new Table.Table (
+     Table_Component_Type => CTWE_Entry,
+     Table_Index_Type     => Int,
+     Table_Low_Bound      => 1,
+     Table_Initial        => 50,
+     Table_Increment      => 200,
+     Table_Name           => "Compile_Time_Warnings_Errors");
 
    -------------------------------
    -- Adjust_External_Name_Case --
@@ -1040,7 +1091,7 @@ package body Sem_Prag is
                         --  template is legal, do not perform this check in
                         --  the instance to circumvent this oddity.
 
-                        if Is_Generic_Instance (Spec_Id) then
+                        if In_Instance then
                            null;
 
                         --  An abstract state with visible refinement cannot
@@ -1211,8 +1262,22 @@ package body Sem_Prag is
            (Item_Is_Input  : out Boolean;
             Item_Is_Output : out Boolean)
          is
+            --  A constant or IN parameter of access type should be handled
+            --  like a variable, as the underlying memory pointed-to can be
+            --  modified. Use Adjusted_Kind to do this adjustment.
+
+            Adjusted_Kind : Entity_Kind := Ekind (Item_Id);
+
          begin
-            case Ekind (Item_Id) is
+            if Ekind_In (Item_Id, E_Constant,
+                                  E_Generic_In_Parameter,
+                                  E_In_Parameter)
+              and then Is_Access_Type (Etype (Item_Id))
+            then
+               Adjusted_Kind := E_Variable;
+            end if;
+
+            case Adjusted_Kind is
 
                --  Abstract states
 
@@ -1252,7 +1317,9 @@ package body Sem_Prag is
 
                   Item_Is_Output := False;
 
-               --  Variables and IN OUT parameters
+               --  Variables and IN OUT parameters, as well as constants and
+               --  IN parameters of access type which are handled like
+               --  variables.
 
                when E_Generic_In_Out_Parameter
                   | E_In_Out_Parameter
@@ -2022,6 +2089,7 @@ package body Sem_Prag is
      (N        : Node_Id;
       Expr_Val : out Boolean)
    is
+      Prag_Id  : constant Pragma_Id := Get_Pragma_Id (Pragma_Name (N));
       Arg1     : constant Node_Id   :=
                    First (Pragma_Argument_Associations (N));
       Obj_Decl : constant Node_Id   := Find_Related_Context (N);
@@ -2048,9 +2116,28 @@ package body Sem_Prag is
       --    pragma Async_Readers (Obj);
       --    pragma Volatile (Obj);
 
-      if not Is_Effectively_Volatile (Obj_Id) then
-         SPARK_Msg_N
-           ("external property % must apply to a volatile object", N);
+      if Prag_Id /= Pragma_No_Caching
+        and then not Is_Effectively_Volatile (Obj_Id)
+      then
+         if No_Caching_Enabled (Obj_Id) then
+            SPARK_Msg_N
+              ("illegal combination of external property % and property "
+               & """No_Caching"" (SPARK RM 7.1.2(6))", N);
+         else
+            SPARK_Msg_N
+              ("external property % must apply to a volatile object", N);
+         end if;
+
+      --  Pragma No_Caching should only apply to volatile variables of
+      --  a non-effectively volatile type (SPARK RM 7.1.2).
+
+      elsif Prag_Id = Pragma_No_Caching then
+         if Is_Effectively_Volatile (Etype (Obj_Id)) then
+            SPARK_Msg_N ("property % must not apply to an object of "
+                         & "an effectively volatile type", N);
+         elsif not Is_Volatile (Obj_Id) then
+            SPARK_Msg_N ("property % must apply to a volatile object", N);
+         end if;
       end if;
 
       --  Ensure that the Boolean expression (if present) is static. A missing
@@ -2303,7 +2390,7 @@ package body Sem_Prag is
                   --  do not perform this check in the instance to circumvent
                   --  this oddity.
 
-                  if Is_Generic_Instance (Spec_Id) then
+                  if In_Instance then
                      null;
 
                   --  An abstract state with visible refinement cannot appear
@@ -2341,10 +2428,12 @@ package body Sem_Prag is
 
                --  Constant related checks
 
-               elsif Ekind (Item_Id) = E_Constant then
+               elsif Ekind (Item_Id) = E_Constant
+                 and then not Is_Access_Type (Etype (Item_Id))
+               then
 
-                  --  A constant is a read-only item, therefore it cannot act
-                  --  as an output.
+                  --  Unless it is of an access type, a constant is a read-only
+                  --  item, therefore it cannot act as an output.
 
                   if Nam_In (Global_Mode, Name_In_Out, Name_Output) then
                      SPARK_Msg_NE
@@ -3697,12 +3786,6 @@ package body Sem_Prag is
       function Acc_Next (N : Node_Id) return Node_Id;
       --  Helper function to iterate over arguments given to OpenAcc pragmas
 
-      procedure Acquire_Warning_Match_String (Arg : Node_Id);
-      --  Used by pragma Warnings (Off, string), and Warn_As_Error (string) to
-      --  get the given string argument, and place it in Name_Buffer, adding
-      --  leading and trailing asterisks if they are not already present. The
-      --  caller has already checked that Arg is a static string expression.
-
       procedure Ada_2005_Pragma;
       --  Called for pragmas defined in Ada 2005, that are not in Ada 95. In
       --  Ada 95 mode, these are implementation defined pragmas, so should be
@@ -3843,6 +3926,10 @@ package body Sem_Prag is
 
       procedure Check_At_Most_N_Arguments (N : Nat);
       --  Check there are no more than N arguments present
+
+      procedure Check_Atomic_VFA (E : Entity_Id; VFA : Boolean);
+      --  Apply legality checks to type or object E subject to an Atomic aspect
+      --  in Ada 2020 (RM C.6(13)) or to a Volatile_Full_Access aspect.
 
       procedure Check_Component
         (Comp            : Node_Id;
@@ -4328,32 +4415,6 @@ package body Sem_Prag is
             return Empty;
          end if;
       end Acc_Next;
-
-      ----------------------------------
-      -- Acquire_Warning_Match_String --
-      ----------------------------------
-
-      procedure Acquire_Warning_Match_String (Arg : Node_Id) is
-      begin
-         String_To_Name_Buffer
-           (Strval (Expr_Value_S (Get_Pragma_Arg (Arg))));
-
-         --  Add asterisk at start if not already there
-
-         if Name_Len > 0 and then Name_Buffer (1) /= '*' then
-            Name_Buffer (2 .. Name_Len + 1) :=
-              Name_Buffer (1 .. Name_Len);
-            Name_Buffer (1) := '*';
-            Name_Len := Name_Len + 1;
-         end if;
-
-         --  Add asterisk at end if not already there
-
-         if Name_Buffer (Name_Len) /= '*' then
-            Name_Len := Name_Len + 1;
-            Name_Buffer (Name_Len) := '*';
-         end if;
-      end Acquire_Warning_Match_String;
 
       ---------------------
       -- Ada_2005_Pragma --
@@ -5622,6 +5683,165 @@ package body Sem_Prag is
             end loop;
          end if;
       end Check_At_Most_N_Arguments;
+
+      ------------------------
+      --  Check_Atomic_VFA  --
+      ------------------------
+
+      procedure Check_Atomic_VFA (E : Entity_Id; VFA : Boolean) is
+
+         Aliased_Subcomponent : exception;
+         --  Exception raised if an aliased subcomponent is found in E
+
+         Independent_Subcomponent : exception;
+         --  Exception raised if an independent subcomponent is found in E
+
+         procedure Check_Subcomponents (Typ : Entity_Id);
+         --  Apply checks to subcomponents for Atomic and Volatile_Full_Access
+
+         -------------------------
+         -- Check_Subcomponents --
+         -------------------------
+
+         procedure Check_Subcomponents (Typ : Entity_Id) is
+            Comp : Entity_Id;
+
+         begin
+            if Is_Array_Type (Typ) then
+               Comp := Component_Type (Typ);
+
+               --  For Atomic we accept any atomic subcomponents
+
+               if not VFA
+                 and then (Has_Atomic_Components (Typ)
+                            or else Is_Atomic (Comp))
+               then
+                  null;
+
+               --  Give an error if the components are aliased
+
+               elsif Has_Aliased_Components (Typ)
+                 or else Is_Aliased (Comp)
+               then
+                  raise Aliased_Subcomponent;
+
+               --  For VFA we accept non-aliased VFA subcomponents
+
+               elsif VFA
+                 and then Is_Volatile_Full_Access (Comp)
+               then
+                  null;
+
+               --  Give an error if the components are independent
+
+               elsif Has_Independent_Components (Typ)
+                  or else Is_Independent (Comp)
+               then
+                  raise Independent_Subcomponent;
+               end if;
+
+               --  Recurse on the component type
+
+               Check_Subcomponents (Comp);
+
+            --  Note: Has_Aliased_Components, like Has_Atomic_Components,
+            --  and Has_Independent_Components, applies only to arrays.
+            --  However, this flag does not have a corresponding pragma, so
+            --  perhaps it should be possible to apply it to record types as
+            --  well. Should this be done ???
+
+            elsif Is_Record_Type (Typ) then
+               --  It is possible to have an aliased discriminant, so they
+               --  must be checked along with normal components.
+
+               Comp := First_Component_Or_Discriminant (Typ);
+               while Present (Comp) loop
+
+                  --  For Atomic we accept any atomic subcomponents
+
+                  if not VFA
+                    and then (Is_Atomic (Comp)
+                               or else Is_Atomic (Etype (Comp)))
+                  then
+                     null;
+
+                  --  Give an error if the component is aliased
+
+                  elsif Is_Aliased (Comp)
+                    or else Is_Aliased (Etype (Comp))
+                  then
+                     raise Aliased_Subcomponent;
+
+                  --  For VFA we accept non-aliased VFA subcomponents
+
+                  elsif VFA
+                    and then (Is_Volatile_Full_Access (Comp)
+                               or else Is_Volatile_Full_Access (Etype (Comp)))
+                  then
+                     null;
+
+                  --  Give an error if the component is independent
+
+                  elsif Is_Independent (Comp)
+                     or else Is_Independent (Etype (Comp))
+                  then
+                     raise Independent_Subcomponent;
+                  end if;
+
+                  --  Recurse on the component type
+
+                  Check_Subcomponents (Etype (Comp));
+
+                  Next_Component_Or_Discriminant (Comp);
+               end loop;
+            end if;
+         end Check_Subcomponents;
+
+         Typ : Entity_Id;
+
+      begin
+         --  Fetch the type in case we are dealing with an object or component
+
+         if Is_Type (E) then
+            Typ := E;
+         else
+            pragma Assert (Is_Object (E)
+              or else
+                Nkind (Declaration_Node (E)) = N_Component_Declaration);
+
+            Typ := Etype (E);
+         end if;
+
+         --  Check all the subcomponents of the type recursively, if any
+
+         Check_Subcomponents (Typ);
+
+      exception
+         when Aliased_Subcomponent =>
+            if VFA then
+               Error_Pragma
+                 ("cannot apply Volatile_Full_Access with aliased "
+                  & "subcomponent ");
+            else
+               Error_Pragma
+                 ("cannot apply Atomic with aliased subcomponent "
+                  & "(RM C.6(13))");
+            end if;
+
+         when Independent_Subcomponent =>
+            if VFA then
+               Error_Pragma
+                 ("cannot apply Volatile_Full_Access with independent "
+                  & "subcomponent ");
+            else
+               Error_Pragma
+                 ("cannot apply Atomic with independent subcomponent "
+                  & "(RM C.6(13))");
+            end if;
+
+         when others =>
+            raise Program_Error;
+      end Check_Atomic_VFA;
 
       ---------------------
       -- Check_Component --
@@ -7075,10 +7295,11 @@ package body Sem_Prag is
          Item : Node_Id := First (Decls);
 
       begin
-         --  Only other pragmas can come before this pragma
+         --  Only other pragmas can come before this pragma, but they might
+         --  have been rewritten so check the original node.
 
          loop
-            if No (Item) or else Nkind (Item) /= N_Pragma then
+            if No (Item) or else Nkind (Original_Node (Item)) /= N_Pragma then
                return False;
 
             elsif Item = Pragma_Node then
@@ -7202,12 +7423,15 @@ package body Sem_Prag is
 
       procedure Process_Atomic_Independent_Shared_Volatile is
          procedure Check_VFA_Conflicts (Ent : Entity_Id);
-         --  Apply additional checks for the GNAT pragma Volatile_Full_Access
+         --  Check that Volatile_Full_Access and VFA do not conflict
 
          procedure Mark_Component_Or_Object (Ent : Entity_Id);
-         --  Appropriately set flags on the given entity (either an array or
+         --  Appropriately set flags on the given entity, either an array or
          --  record component, or an object declaration) according to the
          --  current pragma.
+
+         procedure Mark_Type (Ent : Entity_Id);
+         --  Appropriately set flags on the given entity, a type
 
          procedure Set_Atomic_VFA (Ent : Entity_Id);
          --  Set given type as Is_Atomic or Is_Volatile_Full_Access. Also, if
@@ -7224,10 +7448,7 @@ package body Sem_Prag is
             Typ  : Entity_Id;
 
             VFA_And_Atomic : Boolean := False;
-            --  Set True if atomic component present
-
-            VFA_And_Aliased : Boolean := False;
-            --  Set True if aliased component present
+            --  Set True if both VFA and Atomic present
 
          begin
             --  Fetch the type in case we are dealing with an object or
@@ -7285,48 +7506,6 @@ package body Sem_Prag is
                      & "entity");
                end if;
             end if;
-
-            --  Check for the application of VFA to an entity that has aliased
-            --  components.
-
-            if Prag_Id = Pragma_Volatile_Full_Access then
-               if Is_Array_Type (Typ)
-                 and then Has_Aliased_Components (Typ)
-               then
-                  VFA_And_Aliased := True;
-
-               --  Note: Has_Aliased_Components, like Has_Atomic_Components,
-               --  and Has_Independent_Components, applies only to arrays.
-               --  However, this flag does not have a corresponding pragma, so
-               --  perhaps it should be possible to apply it to record types as
-               --  well. Should this be done ???
-
-               elsif Is_Record_Type (Typ) then
-                  --  It is possible to have an aliased discriminant, so they
-                  --  must be checked along with normal components.
-
-                  Comp := First_Component_Or_Discriminant (Typ);
-                  while Present (Comp) loop
-                     if Is_Aliased (Comp)
-                       or else Is_Aliased (Etype (Comp))
-                     then
-                        VFA_And_Aliased := True;
-                        Check_SPARK_05_Restriction
-                          ("aliased is not allowed", Comp);
-
-                        exit;
-                     end if;
-
-                     Next_Component_Or_Discriminant (Comp);
-                  end loop;
-               end if;
-
-               if VFA_And_Aliased then
-                  Error_Pragma
-                    ("cannot apply Volatile_Full_Access (aliased component "
-                     & "present)");
-               end if;
-            end if;
          end Check_VFA_Conflicts;
 
          ------------------------------
@@ -7373,6 +7552,78 @@ package body Sem_Prag is
                Set_Treat_As_Volatile (Ent);
             end if;
          end Mark_Component_Or_Object;
+
+         ---------------
+         -- Mark_Type --
+         ---------------
+
+         procedure Mark_Type (Ent : Entity_Id) is
+         begin
+            --  Attribute belongs on the base type. If the view of the type is
+            --  currently private, it also belongs on the underlying type.
+
+            --  In Ada_2020, the pragma can apply to a formal type, for which
+            --  there may be no underlying type.
+
+            if Prag_Id = Pragma_Atomic
+              or else Prag_Id = Pragma_Shared
+              or else Prag_Id = Pragma_Volatile_Full_Access
+            then
+               Set_Atomic_VFA (Ent);
+               Set_Atomic_VFA (Base_Type (Ent));
+
+               if not Is_Generic_Type (Ent) then
+                  Set_Atomic_VFA (Underlying_Type (Ent));
+               end if;
+            end if;
+
+            --  Atomic/Shared/Volatile_Full_Access imply Independent
+
+            if Prag_Id /= Pragma_Volatile then
+               Set_Is_Independent (Ent);
+               Set_Is_Independent (Base_Type (Ent));
+
+               if not Is_Generic_Type (Ent) then
+                  Set_Is_Independent (Underlying_Type (Ent));
+
+                  if Prag_Id = Pragma_Independent then
+                     Record_Independence_Check (N, Base_Type (Ent));
+                  end if;
+               end if;
+            end if;
+
+            --  Atomic/Shared/Volatile_Full_Access imply Volatile
+
+            if Prag_Id /= Pragma_Independent then
+               Set_Is_Volatile (Ent);
+               Set_Is_Volatile (Base_Type (Ent));
+
+               if not Is_Generic_Type (Ent) then
+                  Set_Is_Volatile (Underlying_Type (Ent));
+                  Set_Treat_As_Volatile (Underlying_Type (Ent));
+               end if;
+
+               Set_Treat_As_Volatile (Ent);
+            end if;
+
+            --  Apply Volatile to the composite type's individual components,
+            --  (RM C.6(8/3)).
+
+            if Prag_Id = Pragma_Volatile
+              and then Is_Record_Type (Etype (Ent))
+            then
+               declare
+                  Comp : Entity_Id;
+               begin
+                  Comp := First_Component (Ent);
+                  while Present (Comp) loop
+                     Mark_Component_Or_Object (Comp);
+
+                     Next_Component (Comp);
+                  end loop;
+               end;
+            end if;
+         end Mark_Type;
 
          --------------------
          -- Set_Atomic_VFA --
@@ -7436,58 +7687,7 @@ package body Sem_Prag is
                Check_First_Subtype (Arg1);
             end if;
 
-            --  Attribute belongs on the base type. If the view of the type is
-            --  currently private, it also belongs on the underlying type.
-
-            if Prag_Id = Pragma_Atomic
-              or else Prag_Id = Pragma_Shared
-              or else Prag_Id = Pragma_Volatile_Full_Access
-            then
-               Set_Atomic_VFA (E);
-               Set_Atomic_VFA (Base_Type (E));
-               Set_Atomic_VFA (Underlying_Type (E));
-            end if;
-
-            --  Atomic/Shared/Volatile_Full_Access imply Independent
-
-            if Prag_Id /= Pragma_Volatile then
-               Set_Is_Independent (E);
-               Set_Is_Independent (Base_Type (E));
-               Set_Is_Independent (Underlying_Type (E));
-
-               if Prag_Id = Pragma_Independent then
-                  Record_Independence_Check (N, Base_Type (E));
-               end if;
-            end if;
-
-            --  Atomic/Shared/Volatile_Full_Access imply Volatile
-
-            if Prag_Id /= Pragma_Independent then
-               Set_Is_Volatile (E);
-               Set_Is_Volatile (Base_Type (E));
-               Set_Is_Volatile (Underlying_Type (E));
-
-               Set_Treat_As_Volatile (E);
-               Set_Treat_As_Volatile (Underlying_Type (E));
-            end if;
-
-            --  Apply Volatile to the composite type's individual components,
-            --  (RM C.6(8/3)).
-
-            if Prag_Id = Pragma_Volatile
-              and then Is_Record_Type (Etype (E))
-            then
-               declare
-                  Comp : Entity_Id;
-               begin
-                  Comp := First_Component (E);
-                  while Present (Comp) loop
-                     Mark_Component_Or_Object (Comp);
-
-                     Next_Component (Comp);
-                  end loop;
-               end;
-            end if;
+            Mark_Type (E);
 
          --  Deal with the case where the pragma/attribute applies to a
          --  component or object declaration.
@@ -7501,14 +7701,26 @@ package body Sem_Prag is
             end if;
 
             Mark_Component_Or_Object (E);
+
+         --  In other cases give an error
+
          else
             Error_Pragma_Arg ("inappropriate entity for pragma%", Arg1);
          end if;
 
-         --  Perform the checks needed to assure the proper use of the GNAT
-         --  pragma Volatile_Full_Access.
+         --  Check that Volatile_Full_Access and Atomic do not conflict
 
          Check_VFA_Conflicts (E);
+
+         --  Check for the application of Atomic or Volatile_Full_Access to
+         --  an entity that has [nonatomic] aliased, or else specified to be
+         --  independently addressable, subcomponents.
+
+         if (Prag_Id = Pragma_Atomic and then Ada_Version >= Ada_2020)
+           or else Prag_Id = Pragma_Volatile_Full_Access
+         then
+            Check_Atomic_VFA (E, VFA => Prag_Id = Pragma_Volatile_Full_Access);
+         end if;
 
          --  The following check is only relevant when SPARK_Mode is on as
          --  this is not a standard Ada legality rule. Pragma Volatile can
@@ -7536,46 +7748,8 @@ package body Sem_Prag is
       -------------------------------------------
 
       procedure Process_Compile_Time_Warning_Or_Error is
-         Validation_Needed : Boolean := False;
-
-         function Check_Node (N : Node_Id) return Traverse_Result;
-         --  Tree visitor that checks if N is an attribute reference that can
-         --  be statically computed by the back end. Validation_Needed is set
-         --  to True if found.
-
-         ----------------
-         -- Check_Node --
-         ----------------
-
-         function Check_Node (N : Node_Id) return Traverse_Result is
-         begin
-            if Nkind (N) = N_Attribute_Reference
-              and then Is_Entity_Name (Prefix (N))
-              and then not Is_Generic_Unit (Scope (Entity (Prefix (N))))
-            then
-               declare
-                  Attr_Id : constant Attribute_Id :=
-                              Get_Attribute_Id (Attribute_Name (N));
-               begin
-                  if Attr_Id = Attribute_Alignment
-                    or else Attr_Id = Attribute_Size
-                  then
-                     Validation_Needed := True;
-                  end if;
-               end;
-            end if;
-
-            return OK;
-         end Check_Node;
-
-         procedure Check_Expression is new Traverse_Proc (Check_Node);
-
-         --  Local variables
-
+         P : Node_Id := Parent (N);
          Arg1x : constant Node_Id := Get_Pragma_Arg (Arg1);
-
-      --  Start of processing for Process_Compile_Time_Warning_Or_Error
-
       begin
          --  In GNATprove mode, pragmas Compile_Time_Error and
          --  Compile_Time_Warning are ignored, as the analyzer may not have the
@@ -7593,19 +7767,28 @@ package body Sem_Prag is
          Check_Arg_Is_OK_Static_Expression (Arg2, Standard_String);
          Analyze_And_Resolve (Arg1x, Standard_Boolean);
 
+         --  If the condition is known at compile time (now), validate it now.
+         --  Otherwise, register the expression for validation after the back
+         --  end has been called, because it might be known at compile time
+         --  then. For example, if the expression is "Record_Type'Size /= 32"
+         --  it might be known after the back end has determined the size of
+         --  Record_Type. We do not defer validation if we're inside a generic
+         --  unit, because we will have more information in the instances.
+
          if Compile_Time_Known_Value (Arg1x) then
-            Process_Compile_Time_Warning_Or_Error (N, Sloc (Arg1));
-
-         --  Register the expression for its validation after the back end has
-         --  been called if it has occurrences of attributes Size or Alignment
-         --  (because they may be statically computed by the back end and hence
-         --  the whole expression needs to be reevaluated).
-
+            Validate_Compile_Time_Warning_Or_Error (N, Sloc (Arg1));
          else
-            Check_Expression (Arg1x);
+            while Present (P) and then Nkind (P) not in N_Generic_Declaration
+            loop
+               if Nkind_In (P, N_Package_Body, N_Subprogram_Body) then
+                  P := Corresponding_Spec (P);
+               else
+                  P := Parent (P);
+               end if;
+            end loop;
 
-            if Validation_Needed then
-               Sem_Ch13.Validate_Compile_Time_Warning_Error (N);
+            if No (P) then
+               Defer_Compile_Time_Warning_Error_To_BE (N);
             end if;
          end if;
       end Process_Compile_Time_Warning_Or_Error;
@@ -8165,15 +8348,16 @@ package body Sem_Prag is
             Set_Convention_From_Pragma (E);
 
             --  Treat a pragma Import as an implicit body, and pragma import
-            --  as implicit reference (for navigation in GPS).
+            --  as implicit reference (for navigation in GNAT Studio).
 
             if Prag_Id = Pragma_Import then
                Generate_Reference (E, Id, 'b');
 
             --  For exported entities we restrict the generation of references
             --  to entities exported to foreign languages since entities
-            --  exported to Ada do not provide further information to GPS and
-            --  add undesired references to the output of the gnatxref tool.
+            --  exported to Ada do not provide further information to
+            --  GNAT Studio and add undesired references to the output of the
+            --  gnatxref tool.
 
             elsif Prag_Id = Pragma_Export
               and then Convention (E) /= Convention_Ada
@@ -8921,8 +9105,7 @@ package body Sem_Prag is
             Mark_Rewrite_Insertion (Decl);
 
          else
-            Error_Pragma_Arg ("no matching type found for pragma%",
-            Arg2);
+            Error_Pragma_Arg ("no matching type found for pragma%", Arg2);
          end if;
       end Process_Import_Predefined_Type;
 
@@ -9861,6 +10044,17 @@ package body Sem_Prag is
       --  Start of processing for Process_Inline
 
       begin
+         --  An inlined subprogram may grant access to its private enclosing
+         --  context depending on the placement of its body. From elaboration
+         --  point of view, the flow of execution may enter this private
+         --  context, and then reach an external unit, thus producing a
+         --  dependency on that external unit. For such a path to be properly
+         --  discovered and encoded in the ALI file of the main unit, let the
+         --  ABE mechanism process the body of the main unit, and encode all
+         --  relevant invocation constructs and the relations between them.
+
+         Mark_Save_Invocation_Graph_Of_Body;
+
          Check_No_Identifiers;
          Check_At_Least_N_Arguments (1);
 
@@ -12219,7 +12413,7 @@ package body Sem_Prag is
                            Check_Ghost_Synchronous;
 
                         --  Option Part_Of without an encapsulating state is
-                        --  illegal (SPARK RM 7.1.4(9)).
+                        --  illegal (SPARK RM 7.1.4(8)).
 
                         elsif Chars (Opt) = Name_Part_Of then
                            SPARK_Msg_N
@@ -12958,6 +13152,18 @@ package body Sem_Prag is
             Ada_Version_Explicit := Ada_2020;
             Ada_Version_Pragma   := N;
 
+         -------------------------------------
+         -- Aggregate_Individually_Assign --
+         -------------------------------------
+
+         --  pragma Aggregate_Individually_Assign;
+
+         when Pragma_Aggregate_Individually_Assign =>
+            GNAT_Pragma;
+            Check_Arg_Count (0);
+            Check_Valid_Configuration_Pragma;
+            Aggregate_Individually_Assign := True;
+
          ----------------------
          -- All_Calls_Remote --
          ----------------------
@@ -13033,6 +13239,56 @@ package body Sem_Prag is
             Expr    : Node_Id;
             Nam_Arg : Node_Id;
 
+            --------------------------
+            -- Inferred_String_Type --
+            --------------------------
+
+            function Preferred_String_Type (Expr : Node_Id) return Entity_Id;
+            --  Infer the type to use for a string literal or a concatentation
+            --  of operands whose types can be inferred. For such expressions,
+            --  returns the "narrowest" of the three predefined string types
+            --  that can represent the characters occurring in the expression.
+            --  For other expressions, returns Empty.
+
+            function Preferred_String_Type (Expr : Node_Id) return Entity_Id is
+            begin
+               case Nkind (Expr) is
+                  when N_String_Literal =>
+                     if Has_Wide_Wide_Character (Expr) then
+                        return Standard_Wide_Wide_String;
+                     elsif Has_Wide_Character (Expr) then
+                        return Standard_Wide_String;
+                     else
+                        return Standard_String;
+                     end if;
+
+                  when N_Op_Concat =>
+                     declare
+                        L_Type : constant Entity_Id
+                          := Preferred_String_Type (Left_Opnd (Expr));
+                        R_Type : constant Entity_Id
+                          := Preferred_String_Type (Right_Opnd (Expr));
+
+                        Type_Table : constant array (1 .. 4) of Entity_Id
+                          := (Empty,
+                              Standard_Wide_Wide_String,
+                              Standard_Wide_String,
+                              Standard_String);
+                     begin
+                        for Idx in Type_Table'Range loop
+                           if (L_Type = Type_Table (Idx)) or
+                              (R_Type = Type_Table (Idx))
+                           then
+                              return Type_Table (Idx);
+                           end if;
+                        end loop;
+                        raise Program_Error;
+                     end;
+
+                  when others =>
+                     return Empty;
+               end case;
+            end Preferred_String_Type;
          begin
             GNAT_Pragma;
             Check_At_Least_N_Arguments (1);
@@ -13092,18 +13348,12 @@ package body Sem_Prag is
                   if Is_Entity_Name (Expr) then
                      null;
 
-                  --  For string literals, we assume Standard_String as the
-                  --  type, unless the string contains wide or wide_wide
-                  --  characters.
+                  --  For string literals and concatenations of string literals
+                  --  we assume Standard_String as the type, unless the string
+                  --  contains wide or wide_wide characters.
 
-                  elsif Nkind (Expr) = N_String_Literal then
-                     if Has_Wide_Wide_Character (Expr) then
-                        Resolve (Expr, Standard_Wide_Wide_String);
-                     elsif Has_Wide_Character (Expr) then
-                        Resolve (Expr, Standard_Wide_String);
-                     else
-                        Resolve (Expr, Standard_String);
-                     end if;
+                  elsif Present (Preferred_String_Type (Expr)) then
+                     Resolve (Expr, Preferred_String_Type (Expr));
 
                   elsif Is_Overloaded (Expr) then
                      Error_Pragma_Arg ("ambiguous argument for pragma%", Expr);
@@ -13566,17 +13816,20 @@ package body Sem_Prag is
 
          ------------------------------------------------------------------
          -- Async_Readers/Async_Writers/Effective_Reads/Effective_Writes --
+         --                          No_Caching                          --
          ------------------------------------------------------------------
 
-         --  pragma Asynch_Readers   [ (boolean_EXPRESSION) ];
-         --  pragma Asynch_Writers   [ (boolean_EXPRESSION) ];
+         --  pragma Async_Readers    [ (boolean_EXPRESSION) ];
+         --  pragma Async_Writers    [ (boolean_EXPRESSION) ];
          --  pragma Effective_Reads  [ (boolean_EXPRESSION) ];
          --  pragma Effective_Writes [ (boolean_EXPRESSION) ];
+         --  pragma No_Caching       [ (boolean_EXPRESSION) ];
 
          when Pragma_Async_Readers
             | Pragma_Async_Writers
             | Pragma_Effective_Reads
             | Pragma_Effective_Writes
+            | Pragma_No_Caching
          =>
          Async_Effective : declare
             Obj_Decl : Node_Id;
@@ -13798,7 +14051,6 @@ package body Sem_Prag is
             D    : Node_Id;
             E    : Entity_Id;
             E_Id : Node_Id;
-            K    : Node_Kind;
 
          begin
             Check_Ada_83_Warning;
@@ -13827,24 +14079,33 @@ package body Sem_Prag is
             end if;
 
             D := Declaration_Node (E);
-            K := Nkind (D);
 
-            if (K = N_Full_Type_Declaration and then Is_Array_Type (E))
+            if (Nkind (D) = N_Full_Type_Declaration and then Is_Array_Type (E))
               or else
-                ((Ekind (E) = E_Constant or else Ekind (E) = E_Variable)
-                   and then Nkind (D) = N_Object_Declaration
+                (Nkind (D) = N_Object_Declaration
+                   and then (Ekind (E) = E_Constant
+                              or else
+                             Ekind (E) = E_Variable)
                    and then Nkind (Object_Definition (D)) =
                                        N_Constrained_Array_Definition)
+              or else
+                 (Ada_Version >= Ada_2020
+                   and then Nkind (D) = N_Formal_Type_Declaration)
             then
-               --  The flag is set on the object, or on the base type
+               --  The flag is set on the base type, or on the object
 
-               if Nkind (D) /= N_Object_Declaration then
+               if Nkind (D) = N_Full_Type_Declaration then
                   E := Base_Type (E);
                end if;
 
                --  Atomic implies both Independent and Volatile
 
                if Prag_Id = Pragma_Atomic_Components then
+                  if Ada_Version >= Ada_2020 then
+                     Check_Atomic_VFA
+                       (Component_Type (Etype (E)), VFA => False);
+                  end if;
+
                   Set_Has_Atomic_Components (E);
                   Set_Has_Independent_Components (E);
                end if;
@@ -14061,9 +14322,14 @@ package body Sem_Prag is
 
             Expr := Get_Pragma_Arg (Arg2);
 
-            --  Deal with SCO generation
+            --  Mark the pragma (or, if rewritten from an aspect, the original
+            --  aspect) as enabled. Nothing to do for an internally generated
+            --  check for a dynamic predicate.
 
-            if Is_Checked (N) and then not Split_PPC (N) then
+            if Is_Checked (N)
+              and then not Split_PPC (N)
+              and then Cname /= Name_Dynamic_Predicate
+            then
                Set_SCO_Pragma_Enabled (Loc);
             end if;
 
@@ -14369,25 +14635,17 @@ package body Sem_Prag is
 
          --  Processing for this pragma is shared with Psect_Object
 
-         ------------------------
-         -- Compile_Time_Error --
-         ------------------------
+         ----------------------------------------------
+         -- Compile_Time_Error, Compile_Time_Warning --
+         ----------------------------------------------
 
          --  pragma Compile_Time_Error
          --    (boolean_EXPRESSION, static_string_EXPRESSION);
 
-         when Pragma_Compile_Time_Error =>
-            GNAT_Pragma;
-            Process_Compile_Time_Warning_Or_Error;
-
-         --------------------------
-         -- Compile_Time_Warning --
-         --------------------------
-
          --  pragma Compile_Time_Warning
          --    (boolean_EXPRESSION, static_string_EXPRESSION);
 
-         when Pragma_Compile_Time_Warning =>
+         when Pragma_Compile_Time_Error | Pragma_Compile_Time_Warning =>
             GNAT_Pragma;
             Process_Compile_Time_Warning_Or_Error;
 
@@ -17722,7 +17980,6 @@ package body Sem_Prag is
             D    : Node_Id;
             E_Id : Node_Id;
             E    : Entity_Id;
-            K    : Node_Kind;
 
          begin
             Check_Ada_83_Warning;
@@ -17789,11 +18046,10 @@ package body Sem_Prag is
             end if;
 
             D := Declaration_Node (E);
-            K := Nkind (D);
 
             --  The flag is set on the base type, or on the object
 
-            if K = N_Full_Type_Declaration
+            if Nkind (D) = N_Full_Type_Declaration
               and then (Is_Array_Type (E) or else Is_Record_Type (E))
             then
                Set_Has_Independent_Components (Base_Type (E));
@@ -18720,6 +18976,15 @@ package body Sem_Prag is
 
             Set_Has_Own_Invariants (Typ);
 
+            --  Set the Invariants_Ignored flag if that policy is in effect
+
+            Set_Invariants_Ignored (Typ,
+              Present (Check_Policy_List)
+                and then
+                  (Policy_In_Effect (Name_Invariant) = Name_Ignore
+                     and then
+                   Policy_In_Effect (Name_Type_Invariant) = Name_Ignore));
+
             --  If the invariant is class-wide, then it can be inherited by
             --  derived or interface implementing types. The type is said to
             --  have "inheritable" invariants.
@@ -19083,6 +19348,17 @@ package body Sem_Prag is
                      Set_Linker_Section_Pragma
                        (Entity (Corresponding_Aspect (N)), N);
 
+                     --  Propagate it to its ultimate aliased entity to
+                     --  facilitate the backend processing this attribute
+                     --  in instantiations of generic subprograms.
+
+                     if Present (Alias (Entity (Corresponding_Aspect (N))))
+                     then
+                        Set_Linker_Section_Pragma
+                          (Ultimate_Alias
+                            (Entity (Corresponding_Aspect (N))), N);
+                     end if;
+
                   --  Pragma case, we must climb the homonym chain, but skip
                   --  any for which the linker section is already set.
 
@@ -19090,6 +19366,15 @@ package body Sem_Prag is
                      loop
                         if No (Linker_Section_Pragma (Ent)) then
                            Set_Linker_Section_Pragma (Ent, N);
+
+                           --  Propagate it to its ultimate aliased entity to
+                           --  facilitate the backend processing this attribute
+                           --  in instantiations of generic subprograms.
+
+                           if Present (Alias (Ent)) then
+                              Set_Linker_Section_Pragma
+                                (Ultimate_Alias (Ent), N);
+                           end if;
 
                            --  A pragma that applies to a Ghost entity becomes
                            --  Ghost for the purposes of legality checks and
@@ -19349,20 +19634,25 @@ package body Sem_Prag is
          -----------------------
 
          --  pragma Machine_Attribute (
-         --       [Entity         =>] LOCAL_NAME,
-         --       [Attribute_Name =>] static_string_EXPRESSION
-         --    [, [Info           =>] static_EXPRESSION] );
+         --     [Entity         =>] LOCAL_NAME,
+         --     [Attribute_Name =>] static_string_EXPRESSION
+         --  [, [Info           =>] static_EXPRESSION {, static_EXPRESSION}] );
 
          when Pragma_Machine_Attribute => Machine_Attribute : declare
+            Arg : Node_Id;
             Def_Id : Entity_Id;
 
          begin
             GNAT_Pragma;
             Check_Arg_Order ((Name_Entity, Name_Attribute_Name, Name_Info));
 
-            if Arg_Count = 3 then
+            if Arg_Count >= 3 then
                Check_Optional_Identifier (Arg3, Name_Info);
-               Check_Arg_Is_OK_Static_Expression (Arg3);
+               Arg := Arg3;
+               while Present (Arg) loop
+                  Check_Arg_Is_OK_Static_Expression (Arg);
+                  Arg := Next (Arg);
+               end loop;
             else
                Check_Arg_Count (2);
             end if;
@@ -19487,25 +19777,29 @@ package body Sem_Prag is
             end loop;
          end Main_Storage;
 
-         ----------------------
-         -- Max_Queue_Length --
-         ----------------------
+         ----------------------------
+         -- Max_Entry_Queue_Length --
+         ----------------------------
 
-         --  pragma Max_Queue_Length (static_integer_EXPRESSION);
+         --  pragma Max_Entry_Queue_Length (static_integer_EXPRESSION);
 
-         --  This processing is shared by Pragma_Max_Entry_Queue_Depth
+         --  This processing is shared by Pragma_Max_Entry_Queue_Depth and
+         --  Pragma_Max_Queue_Length.
 
-         when Pragma_Max_Queue_Length
+         when Pragma_Max_Entry_Queue_Length
             | Pragma_Max_Entry_Queue_Depth
+            | Pragma_Max_Queue_Length
          =>
-         Max_Queue_Length : declare
+         Max_Entry_Queue_Length : declare
             Arg        : Node_Id;
             Entry_Decl : Node_Id;
             Entry_Id   : Entity_Id;
             Val        : Uint;
 
          begin
-            if Prag_Id = Pragma_Max_Queue_Length then
+            if Prag_Id = Pragma_Max_Entry_Queue_Depth
+              or else Prag_Id = Pragma_Max_Queue_Length
+            then
                GNAT_Pragma;
             end if;
 
@@ -19547,9 +19841,9 @@ package body Sem_Prag is
 
             Val := Expr_Value (Arg);
 
-            if Val <= 0 then
+            if Val < -1 then
                Error_Pragma_Arg
-                 ("argument for pragma% must be positive", Arg1);
+                 ("argument for pragma% cannot be less than -1", Arg1);
 
             elsif not UI_Is_In_Int_Range (Val) then
                Error_Pragma_Arg
@@ -19557,17 +19851,8 @@ package body Sem_Prag is
 
             end if;
 
-            --  Manually substitute the expression value of the pragma argument
-            --  if it's not an integer literal because this is not taken care
-            --  of automatically elsewhere.
-
-            if Nkind (Arg) /= N_Integer_Literal then
-               Rewrite (Arg, Make_Integer_Literal (Sloc (Arg), Val));
-               Set_Etype (Arg, Etype (Original_Node (Arg)));
-            end if;
-
             Record_Rep_Item (Entry_Id, N);
-         end Max_Queue_Length;
+         end Max_Entry_Queue_Length;
 
          -----------------
          -- Memory_Size --
@@ -21050,8 +21335,24 @@ package body Sem_Prag is
                Decl := Parent (Ent);
 
                if Present (Expression (Decl)) then
-                  Error_Pragma_Arg
-                    ("object for pragma% cannot have initialization", Arg1);
+                  --  Variables in Persistent_BSS cannot be initialized, so
+                  --  turn off any initialization that might be caused by
+                  --  pragmas Initialize_Scalars or Normalize_Scalars.
+
+                  if Kill_Range_Check (Expression (Decl)) then
+                     Prag :=
+                       Make_Pragma (Loc,
+                         Name_Suppress_Initialization,
+                         Pragma_Argument_Associations => New_List (
+                           Make_Pragma_Argument_Association (Loc,
+                             Expression => New_Occurrence_Of (Ent, Loc))));
+                     Insert_Before (N, Prag);
+                     Analyze (Prag);
+
+                  else
+                     Error_Pragma_Arg
+                       ("object for pragma% cannot have initialization", Arg1);
+                  end if;
                end if;
 
                if not Is_Potentially_Persistent_Type (Etype (Ent)) then
@@ -21062,7 +21363,7 @@ package body Sem_Prag is
 
                Prag :=
                  Make_Linker_Section_Pragma
-                   (Ent, Sloc (N), ".persistent.bss");
+                   (Ent, Loc, ".persistent.bss");
                Insert_After (N, Prag);
                Analyze (Prag);
 
@@ -23173,7 +23474,16 @@ package body Sem_Prag is
             --  Start of processing for Check_Library_Level_Entity
 
             begin
-               if not Is_Library_Level_Entity (E) then
+               --  A SPARK_Mode of On shall only apply to library-level
+               --  entities, except for those in generic instances, which are
+               --  ignored (even if the entity gets SPARK_Mode pragma attached
+               --  in the AST, its effect is not taken into account unless the
+               --  context already provides SPARK_Mode of On in GNATprove).
+
+               if Get_SPARK_Mode_From_Annotation (N) = On
+                 and then not Is_Library_Level_Entity (E)
+                 and then Instantiation_Location (Sloc (N)) = No_Location
+               then
                   Error_Msg_Name_1 := Pname;
                   Error_Msg_N (Fix_Error (Msg_1), N);
 
@@ -24075,7 +24385,7 @@ package body Sem_Prag is
                   Error_Pragma_Arg
                     ("argument of pragma% cannot be an incomplete type", Arg1);
                else
-                  Set_Suppress_Initialization (Full_View (Base_Type (E)));
+                  Set_Suppress_Initialization (Full_View (E));
                end if;
 
             --  For first subtype, set flag on base type
@@ -25230,10 +25540,10 @@ package body Sem_Prag is
             --  OK static string expression
 
             else
-               Acquire_Warning_Match_String (Arg1);
                Warnings_As_Errors_Count := Warnings_As_Errors_Count + 1;
                Warnings_As_Errors (Warnings_As_Errors_Count) :=
-                 new String'(Name_Buffer (1 .. Name_Len));
+                 new String'(Acquire_Warning_Match_String
+                               (Expr_Value_S (Get_Pragma_Arg (Arg1))));
             end if;
 
          --------------
@@ -25538,8 +25848,6 @@ package body Sem_Prag is
                      --  Static string expression case
 
                      else
-                        Acquire_Warning_Match_String (Arg2);
-
                         --  Note on configuration pragma case: If this is a
                         --  configuration pragma, then for an OFF pragma, we
                         --  just set Config True in the call, which is all
@@ -25559,22 +25867,27 @@ package body Sem_Prag is
                         --  generic unit we are inside is public, but for now
                         --  we don't bother with that refinement.
 
-                        if Chars (Argx) = Name_Off then
-                           Set_Specific_Warning_Off
-                             (Loc, Name_Buffer (1 .. Name_Len), Reason,
-                              Config => Is_Configuration_Pragma,
-                              Used   => Inside_A_Generic or else In_Instance);
+                        declare
+                           Message : constant String :=
+                             Acquire_Warning_Match_String
+                               (Expr_Value_S (Get_Pragma_Arg (Arg2)));
+                        begin
+                           if Chars (Argx) = Name_Off then
+                              Set_Specific_Warning_Off
+                                (Loc, Message, Reason,
+                                 Config => Is_Configuration_Pragma,
+                                 Used => Inside_A_Generic or else In_Instance);
 
-                        elsif Chars (Argx) = Name_On then
-                           Set_Specific_Warning_On
-                             (Loc, Name_Buffer (1 .. Name_Len), Err);
+                           elsif Chars (Argx) = Name_On then
+                              Set_Specific_Warning_On (Loc, Message, Err);
 
-                           if Err then
-                              Error_Msg
-                                ("??pragma Warnings On with no matching "
-                                 & "Warnings Off", Loc);
+                              if Err then
+                                 Error_Msg
+                                   ("??pragma Warnings On with no matching "
+                                    & "Warnings Off", Loc);
+                              end if;
                            end if;
-                        end if;
+                        end;
                      end if;
                   end;
                end if;
@@ -25601,6 +25914,12 @@ package body Sem_Prag is
                return;
             else
                Ent := Underlying_Type (Ent);
+            end if;
+
+            --  The pragma applies to entities with addresses
+
+            if Is_Type (Ent) then
+               Error_Pragma ("pragma applies to objects and subprograms");
             end if;
 
             --  The only processing required is to link this item on to the
@@ -25715,7 +26034,7 @@ package body Sem_Prag is
 
                --  Otherwise we have a call to an overridden primitive, and we
                --  will create a common class-wide clone for the body of
-               --  original operation and its eventual inherited versions.  If
+               --  original operation and its eventual inherited versions. If
                --  the original operation dispatches on result it is never
                --  inherited and there is no need for a clone. There is not
                --  need for a clone either in GNATprove mode, as cases that
@@ -25887,18 +26206,17 @@ package body Sem_Prag is
       --  matched items found in pragma Depends.
 
       procedure Check_Output_States
-        (Spec_Id      : Entity_Id;
-         Spec_Inputs  : Elist_Id;
+        (Spec_Inputs  : Elist_Id;
          Spec_Outputs : Elist_Id;
          Body_Inputs  : Elist_Id;
          Body_Outputs : Elist_Id);
       --  Determine whether pragma Depends contains an output state with a
       --  visible refinement and if so, ensure that pragma Refined_Depends
-      --  mentions all its constituents as outputs. Spec_Id is the entity of
-      --  the related subprograms. Spec_Inputs and Spec_Outputs denote the
-      --  inputs and outputs of the subprogram spec synthesized from pragma
-      --  Depends. Body_Inputs and Body_Outputs denote the inputs and outputs
-      --  of the subprogram body synthesized from pragma Refined_Depends.
+      --  mentions all its constituents as outputs. Spec_Inputs and
+      --  Spec_Outputs denote the inputs and outputs of the subprogram spec
+      --  synthesized from pragma Depends. Body_Inputs and Body_Outputs denote
+      --  the inputs and outputs of the subprogram body synthesized from pragma
+      --  Refined_Depends.
 
       function Collect_States (Clauses : List_Id) return Elist_Id;
       --  Given a normalized list of dependencies obtained from calling
@@ -25920,11 +26238,8 @@ package body Sem_Prag is
       --  all special cases. Matched_Items contains the entities of all matched
       --  items found in pragma Depends.
 
-      procedure Report_Extra_Clauses
-        (Spec_Id : Entity_Id;
-         Clauses : List_Id);
-      --  Emit an error for each extra clause found in list Clauses. Spec_Id
-      --  denotes the entity of the related subprogram.
+      procedure Report_Extra_Clauses (Clauses : List_Id);
+      --  Emit an error for each extra clause found in list Clauses
 
       -----------------------------
       -- Check_Dependency_Clause --
@@ -26188,7 +26503,7 @@ package body Sem_Prag is
          --  Do not perform this check in an instance because it was already
          --  performed successfully in the generic template.
 
-         if Is_Generic_Instance (Spec_Id) then
+         if In_Instance then
             return;
          end if;
 
@@ -26355,8 +26670,7 @@ package body Sem_Prag is
       -------------------------
 
       procedure Check_Output_States
-        (Spec_Id      : Entity_Id;
-         Spec_Inputs  : Elist_Id;
+        (Spec_Inputs  : Elist_Id;
          Spec_Outputs : Elist_Id;
          Body_Inputs  : Elist_Id;
          Body_Outputs : Elist_Id)
@@ -26449,7 +26763,7 @@ package body Sem_Prag is
          --  Do not perform this check in an instance because it was already
          --  performed successfully in the generic template.
 
-         if Is_Generic_Instance (Spec_Id) then
+         if In_Instance then
             null;
 
          --  Inspect the outputs of pragma Depends looking for a state with a
@@ -26794,17 +27108,14 @@ package body Sem_Prag is
       -- Report_Extra_Clauses --
       --------------------------
 
-      procedure Report_Extra_Clauses
-        (Spec_Id : Entity_Id;
-         Clauses : List_Id)
-      is
+      procedure Report_Extra_Clauses (Clauses : List_Id) is
          Clause : Node_Id;
 
       begin
          --  Do not perform this check in an instance because it was already
          --  performed successfully in the generic template.
 
-         if Is_Generic_Instance (Spec_Id) then
+         if In_Instance then
             null;
 
          elsif Present (Clauses) then
@@ -26939,8 +27250,7 @@ package body Sem_Prag is
             --  constituents appear as outputs in the dependency refinement.
 
             Check_Output_States
-              (Spec_Id      => Spec_Id,
-               Spec_Inputs  => Spec_Inputs,
+              (Spec_Inputs  => Spec_Inputs,
                Spec_Outputs => Spec_Outputs,
                Body_Inputs  => Body_Inputs,
                Body_Outputs => Body_Outputs);
@@ -27010,7 +27320,7 @@ package body Sem_Prag is
          Remove_Extra_Clauses (Refinements, Matched_Items);
 
          if Serious_Errors_Detected = Errors then
-            Report_Extra_Clauses (Spec_Id, Refinements);
+            Report_Extra_Clauses (Refinements);
          end if;
       end if;
 
@@ -27263,7 +27573,7 @@ package body Sem_Prag is
          --  Do not perform this check in an instance because it was already
          --  performed successfully in the generic template.
 
-         if Is_Generic_Instance (Spec_Id) then
+         if In_Instance then
             null;
 
          --  Inspect the In_Out items of the corresponding Global pragma
@@ -27372,7 +27682,7 @@ package body Sem_Prag is
          --  Do not perform this check in an instance because it was already
          --  performed successfully in the generic template.
 
-         if Is_Generic_Instance (Spec_Id) then
+         if In_Instance then
             null;
 
          --  Inspect the Input items of the corresponding Global pragma looking
@@ -27495,7 +27805,7 @@ package body Sem_Prag is
          --  Do not perform this check in an instance because it was already
          --  performed successfully in the generic template.
 
-         if Is_Generic_Instance (Spec_Id) then
+         if In_Instance then
             null;
 
          --  Inspect the Output items of the corresponding Global pragma
@@ -27601,7 +27911,7 @@ package body Sem_Prag is
          --  Do not perform this check in an instance because it was already
          --  performed successfully in the generic template.
 
-         if Is_Generic_Instance (Spec_Id) then
+         if In_Instance then
             null;
 
          --  Inspect the Proof_In items of the corresponding Global pragma
@@ -27767,7 +28077,7 @@ package body Sem_Prag is
          --  Do not perform this check in an instance because it was already
          --  performed successfully in the generic template.
 
-         if Is_Generic_Instance (Spec_Id) then
+         if In_Instance then
             null;
 
          elsif Nkind (List) = N_Null then
@@ -28018,7 +28328,7 @@ package body Sem_Prag is
          --  Do not perform this check in an instance because it was already
          --  performed successfully in the generic template.
 
-         if Is_Generic_Instance (Spec_Id) then
+         if In_Instance then
             null;
 
          else
@@ -28041,7 +28351,7 @@ package body Sem_Prag is
          --  Do not perform this check in an instance because it was already
          --  performed successfully in the generic template.
 
-         if Is_Generic_Instance (Spec_Id) then
+         if In_Instance then
             null;
 
          else
@@ -28105,7 +28415,7 @@ package body Sem_Prag is
       --  body contract is instantiated. Since the generic template is legal,
       --  do not perform this check in the instance to circumvent this oddity.
 
-      if Is_Generic_Instance (Spec_Id) then
+      if In_Instance then
          null;
 
       --  Non-instance case
@@ -28221,7 +28531,7 @@ package body Sem_Prag is
       --  in the generic template.
 
       if Serious_Errors_Detected = Errors
-        and then not Is_Generic_Instance (Spec_Id)
+        and then not In_Instance
         and then not Has_Null_State
         and then No_Constit
       then
@@ -30693,6 +31003,7 @@ package body Sem_Prag is
    procedure Initialize is
    begin
       Externals.Init;
+      Compile_Time_Warnings_Errors.Init;
    end Initialize;
 
    --------
@@ -30841,6 +31152,7 @@ package body Sem_Prag is
       Pragma_Ada_12                         => -1,
       Pragma_Ada_2012                       => -1,
       Pragma_Ada_2020                       => -1,
+      Pragma_Aggregate_Individually_Assign  => 0,
       Pragma_All_Calls_Remote               => -1,
       Pragma_Allow_Integer_Address          => -1,
       Pragma_Annotate                       => 93,
@@ -30958,14 +31270,16 @@ package body Sem_Prag is
       Pragma_Main                           => -1,
       Pragma_Main_Storage                   => -1,
       Pragma_Max_Entry_Queue_Depth          =>  0,
+      Pragma_Max_Entry_Queue_Length         =>  0,
       Pragma_Max_Queue_Length               =>  0,
       Pragma_Memory_Size                    =>  0,
-      Pragma_No_Return                      =>  0,
       Pragma_No_Body                        =>  0,
+      Pragma_No_Caching                     =>  0,
       Pragma_No_Component_Reordering        => -1,
       Pragma_No_Elaboration_Code_All        =>  0,
       Pragma_No_Heap_Finalization           =>  0,
       Pragma_No_Inline                      =>  0,
+      Pragma_No_Return                      =>  0,
       Pragma_No_Run_Time                    => -1,
       Pragma_No_Strict_Aliasing             => -1,
       Pragma_No_Tagged_Streams              =>  0,
@@ -31361,11 +31675,11 @@ package body Sem_Prag is
 
    end Process_Compilation_Unit_Pragmas;
 
-   -------------------------------------------
-   -- Process_Compile_Time_Warning_Or_Error --
-   -------------------------------------------
+   --------------------------------------------
+   -- Validate_Compile_Time_Warning_Or_Error --
+   --------------------------------------------
 
-   procedure Process_Compile_Time_Warning_Or_Error
+   procedure Validate_Compile_Time_Warning_Or_Error
      (N     : Node_Id;
       Eloc  : Source_Ptr)
    is
@@ -31472,8 +31786,16 @@ package body Sem_Prag is
                end loop;
             end;
          end if;
+
+      --  Arg1x is not known at compile time, so issue a warning. This can
+      --  happen only if the pragma's processing was deferred until after the
+      --  back end is run (see Process_Compile_Time_Warning_Or_Error).
+      --  Note that the warning control switch applies to both pragmas.
+
+      elsif Warn_On_Unknown_Compile_Time_Warning then
+         Error_Msg_N ("?condition is not known at compile time", Arg1x);
       end if;
-   end Process_Compile_Time_Warning_Or_Error;
+   end Validate_Compile_Time_Warning_Or_Error;
 
    ------------------------------------
    -- Record_Possible_Body_Reference --
@@ -32034,5 +32356,88 @@ package body Sem_Prag is
 
       return Empty;
    end Test_Case_Arg;
+
+   -----------------------------------------
+   -- Defer_Compile_Time_Warning_Error_To_BE --
+   -----------------------------------------
+
+   procedure Defer_Compile_Time_Warning_Error_To_BE (N : Node_Id) is
+      Arg1  : constant Node_Id := First (Pragma_Argument_Associations (N));
+   begin
+      Compile_Time_Warnings_Errors.Append
+        (New_Val => CTWE_Entry'(Eloc  => Sloc (Arg1),
+                                Scope => Current_Scope,
+                                Prag  => N));
+
+      --  If the Boolean expression contains T'Size, and we're not in the main
+      --  unit being compiled, then we need to copy the pragma into the main
+      --  unit, because otherwise T'Size might never be computed, leaving it
+      --  as 0.
+
+      if not In_Extended_Main_Code_Unit (N) then
+         Insert_Library_Level_Action (New_Copy_Tree (N));
+      end if;
+   end Defer_Compile_Time_Warning_Error_To_BE;
+
+   ------------------------------------------
+   -- Validate_Compile_Time_Warning_Errors --
+   ------------------------------------------
+
+   procedure Validate_Compile_Time_Warning_Errors is
+      procedure Set_Scope (S : Entity_Id);
+      --  Install all enclosing scopes of S along with S itself
+
+      procedure Unset_Scope (S : Entity_Id);
+      --  Uninstall all enclosing scopes of S along with S itself
+
+      ---------------
+      -- Set_Scope --
+      ---------------
+
+      procedure Set_Scope (S : Entity_Id) is
+      begin
+         if S /= Standard_Standard then
+            Set_Scope (Scope (S));
+         end if;
+
+         Push_Scope (S);
+      end Set_Scope;
+
+      -----------------
+      -- Unset_Scope --
+      -----------------
+
+      procedure Unset_Scope (S : Entity_Id) is
+      begin
+         if S /= Standard_Standard then
+            Unset_Scope (Scope (S));
+         end if;
+
+         Pop_Scope;
+      end Unset_Scope;
+
+   --  Start of processing for Validate_Compile_Time_Warning_Errors
+
+   begin
+      Expander_Mode_Save_And_Set (False);
+      In_Compile_Time_Warning_Or_Error := True;
+
+      for N in Compile_Time_Warnings_Errors.First ..
+               Compile_Time_Warnings_Errors.Last
+      loop
+         declare
+            T : CTWE_Entry renames Compile_Time_Warnings_Errors.Table (N);
+
+         begin
+            Set_Scope (T.Scope);
+            Reset_Analyzed_Flags (T.Prag);
+            Validate_Compile_Time_Warning_Or_Error (T.Prag, T.Eloc);
+            Unset_Scope (T.Scope);
+         end;
+      end loop;
+
+      In_Compile_Time_Warning_Or_Error := False;
+      Expander_Mode_Restore;
+   end Validate_Compile_Time_Warning_Errors;
 
 end Sem_Prag;

@@ -64,7 +64,7 @@ func cgoCheckWriteBarrier(dst *uintptr, src uintptr) {
 //go:nosplit
 //go:nowritebarrier
 func cgoCheckMemmove(typ *_type, dst, src unsafe.Pointer, off, size uintptr) {
-	if typ.kind&kindNoPointers != 0 {
+	if typ.ptrdata == 0 {
 		return
 	}
 	if !cgoIsGoPointer(src) {
@@ -83,7 +83,7 @@ func cgoCheckMemmove(typ *_type, dst, src unsafe.Pointer, off, size uintptr) {
 //go:nosplit
 //go:nowritebarrier
 func cgoCheckSliceCopy(typ *_type, dst, src slice, n int) {
-	if typ.kind&kindNoPointers != 0 {
+	if typ.ptrdata == 0 {
 		return
 	}
 	if !cgoIsGoPointer(src.array) {
@@ -134,7 +134,7 @@ func cgoCheckTypedBlock(typ *_type, src unsafe.Pointer, off, size uintptr) {
 	}
 
 	s := spanOfUnchecked(uintptr(src))
-	if s.state == mSpanManual {
+	if s.state.get() == mSpanManual {
 		// There are no heap bits for value stored on the stack.
 		// For a channel receive src might be on the stack of some
 		// other goroutine, so we can't unwind the stack even if
@@ -204,7 +204,7 @@ func cgoCheckBits(src unsafe.Pointer, gcbits *byte, off, size uintptr) {
 //go:nowritebarrier
 //go:systemstack
 func cgoCheckUsingType(typ *_type, src unsafe.Pointer, off, size uintptr) {
-	if typ.kind&kindNoPointers != 0 {
+	if typ.ptrdata == 0 {
 		return
 	}
 

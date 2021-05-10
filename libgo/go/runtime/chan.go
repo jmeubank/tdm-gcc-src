@@ -23,15 +23,17 @@ import (
 	"unsafe"
 )
 
-// For gccgo, use go:linkname to rename compiler-called functions to
-// themselves, so that the compiler will export them.
+// For gccgo, use go:linkname to export compiler-called functions.
 //
-//go:linkname makechan runtime.makechan
-//go:linkname makechan64 runtime.makechan64
-//go:linkname chansend1 runtime.chansend1
-//go:linkname chanrecv1 runtime.chanrecv1
-//go:linkname chanrecv2 runtime.chanrecv2
-//go:linkname closechan runtime.closechan
+//go:linkname makechan
+//go:linkname makechan64
+//go:linkname chansend1
+//go:linkname chanrecv1
+//go:linkname chanrecv2
+//go:linkname closechan
+//go:linkname selectnbsend
+//go:linkname selectnbrecv
+//go:linkname selectnbrecv2
 
 const (
 	maxAlign  = 8
@@ -105,7 +107,7 @@ func makechan(t *chantype, size int) *hchan {
 		c = (*hchan)(mallocgc(hchanSize, nil, true))
 		// Race detector uses this location for synchronization.
 		c.buf = c.raceaddr()
-	case elem.kind&kindNoPointers != 0:
+	case elem.ptrdata == 0:
 		// Elements do not contain pointers.
 		// Allocate hchan and buf in one call.
 		c = (*hchan)(mallocgc(hchanSize+mem, nil, true))
@@ -248,7 +250,7 @@ func chansend(c *hchan, ep unsafe.Pointer, block bool, callerpc uintptr) bool {
 	gp.waiting = mysg
 	gp.param = nil
 	c.sendq.enqueue(mysg)
-	goparkunlock(&c.lock, waitReasonChanSend, traceEvGoBlockSend, 3)
+	gopark(chanparkcommit, unsafe.Pointer(&c.lock), waitReasonChanSend, traceEvGoBlockSend, 2)
 	// Ensure the value being sent is kept alive until the
 	// receiver copies it out. The sudog has a pointer to the
 	// stack object, but sudogs aren't considered as roots of the
@@ -260,6 +262,7 @@ func chansend(c *hchan, ep unsafe.Pointer, block bool, callerpc uintptr) bool {
 		throw("G waiting list is corrupted")
 	}
 	gp.waiting = nil
+	gp.activeStackChans = false
 	if gp.param == nil {
 		if c.closed == 0 {
 			throw("chansend: spurious wakeup")
@@ -541,13 +544,14 @@ func chanrecv(c *hchan, ep unsafe.Pointer, block bool) (selected, received bool)
 	mysg.c = c
 	gp.param = nil
 	c.recvq.enqueue(mysg)
-	goparkunlock(&c.lock, waitReasonChanReceive, traceEvGoBlockRecv, 3)
+	gopark(chanparkcommit, unsafe.Pointer(&c.lock), waitReasonChanReceive, traceEvGoBlockRecv, 2)
 
 	// someone woke us up
 	if mysg != gp.waiting {
 		throw("G waiting list is corrupted")
 	}
 	gp.waiting = nil
+	gp.activeStackChans = false
 	if mysg.releasetime > 0 {
 		blockevent(mysg.releasetime-t0, 2)
 	}
@@ -612,6 +616,14 @@ func recv(c *hchan, sg *sudog, ep unsafe.Pointer, unlockf func(), skip int) {
 		sg.releasetime = cputicks()
 	}
 	goready(gp, skip+1)
+}
+
+func chanparkcommit(gp *g, chanLock unsafe.Pointer) bool {
+	// There are unlocked sudogs that point into gp's stack. Stack
+	// copying must lock the channels of those sudogs.
+	gp.activeStackChans = true
+	unlock((*mutex)(chanLock))
+	return true
 }
 
 // compiler implements
@@ -698,6 +710,14 @@ func reflect_chanlen(c *hchan) int {
 	return int(c.qcount)
 }
 
+//go:linkname reflectlite_chanlen internal..z2freflectlite.chanlen
+func reflectlite_chanlen(c *hchan) int {
+	if c == nil {
+		return 0
+	}
+	return int(c.qcount)
+}
+
 //go:linkname reflect_chancap reflect.chancap
 func reflect_chancap(c *hchan) int {
 	if c == nil {
@@ -749,10 +769,8 @@ func (q *waitq) dequeue() *sudog {
 		// We use a flag in the G struct to tell us when someone
 		// else has won the race to signal this goroutine but the goroutine
 		// hasn't removed itself from the queue yet.
-		if sgp.isSelect {
-			if !atomic.Cas(&sgp.g.selectDone, 0, 1) {
-				continue
-			}
+		if sgp.isSelect && !atomic.Cas(&sgp.g.selectDone, 0, 1) {
+			continue
 		}
 
 		return sgp

@@ -32,8 +32,8 @@ with Namet;    use Namet;
 with Opt;      use Opt;
 with Uname;    use Uname;
 
---  Note: this package body is used by GPS and GNATBench to supply a list of
---  entries for help on available library routines.
+--  Note: this package body is used by GNAT Studio and GNATBench to supply a
+--  list of entries for help on available library routines.
 
 package body Impunit is
 
@@ -241,6 +241,7 @@ package body Impunit is
     ("g-binenv", F),  -- GNAT.Bind_Environment
     ("g-boubuf", F),  -- GNAT.Bounded_Buffers
     ("g-boumai", F),  -- GNAT.Bounded_Mailboxes
+    ("g-brapre", F),  -- GNAT.Branch_Prediction
     ("g-bubsor", F),  -- GNAT.Bubble_Sort
     ("g-busora", F),  -- GNAT.Bubble_Sort_A
     ("g-busorg", F),  -- GNAT.Bubble_Sort_G
@@ -275,6 +276,7 @@ package body Impunit is
     ("g-exptty", F),  -- GNAT.Expect.TTY
     ("g-flocon", F),  -- GNAT.Float_Control
     ("g-forstr", F),  -- GNAT.Formatted_String
+    ("g-graphs", F),  -- GNAT.Graphs
     ("g-heasor", F),  -- GNAT.Heap_Sort
     ("g-hesora", F),  -- GNAT.Heap_Sort_A
     ("g-hesorg", F),  -- GNAT.Heap_Sort_G
@@ -607,7 +609,25 @@ package body Impunit is
     ("a-cforse", F),  -- Ada.Containers.Formal_Ordered_Sets
     ("a-cforma", F),  -- Ada.Containers.Formal_Ordered_Maps
     ("a-cfhase", F),  -- Ada.Containers.Formal_Hashed_Sets
-    ("a-cfhama", F)); -- Ada.Containers.Formal_Hashed_Maps
+    ("a-cfhama", F),  -- Ada.Containers.Formal_Hashed_Maps
+    ("a-cvgpso", F)   -- Ada.Containers.Vectors.Generic_Parallel_Sorting from
+   );                 -- GNATCOLL.OMP
+
+   --------------------
+   -- Ada 202X Units --
+   --------------------
+
+   --  The following units should be used only in Ada 202X mode
+
+   Non_Imp_File_Names_2X : constant File_List := (
+    ("a-stteou", T),  -- Ada.Strings.Text_Output
+    ("a-nubinu", T),  -- Ada.Numerics.Big_Numbers
+    ("a-nbnbin", T),  -- Ada.Numerics.Big_Numbers.Big_Integers
+    ("a-nbnbre", T),  -- Ada.Numerics.Big_Numbers.Big_Reals
+    ("s-aotase", T),  -- System.Atomic_Operations.Test_And_Set
+    ("s-atoope", T),  -- System.Atomic_Operations
+    ("s-atopar", T),  -- System.Atomic_Operations.Arithmetic
+    ("s-atopex", T)); -- System.Atomic_Operations.Exchange
 
    -----------------------
    -- Alternative Units --
@@ -690,19 +710,10 @@ package body Impunit is
          return Not_Predefined_Unit;
       end if;
 
-      --  To be considered predefined, the file name must end in .ads or .adb.
-      --  File names with other extensions (coming from the use of non-standard
-      --  file naming schemes) can never be predefined.
+      --  Not predefined if file name does not end in .ads. This can happen
+      --  when non-standard file names are being used.
 
-      --  Note that in the context of a compiler, the .adb case will never
-      --  arise. However it can arise for other tools, e.g. gnatprove uses
-      --  this routine to detect when a construct comes from an instance of
-      --  a generic defined in a predefined unit.
-
-      if File (File'Last - 3 .. File'Last) /= ".ads"
-           and then
-         File (File'Last - 3 .. File'Last) /= ".adb"
-      then
+      if Name_Buffer (Name_Len - 3 .. Name_Len) /= ".ads" then
          return Not_Predefined_Unit;
       end if;
 
@@ -735,6 +746,14 @@ package body Impunit is
       for J in Non_Imp_File_Names_12'Range loop
          if Buffer = Non_Imp_File_Names_12 (J).Fname then
             return Ada_2012_Unit;
+         end if;
+      end loop;
+
+      --  See if name is in 202X list
+
+      for J in Non_Imp_File_Names_2X'Range loop
+         if Buffer = Non_Imp_File_Names_2X (J).Fname then
+            return Ada_202X_Unit;
          end if;
       end loop;
 

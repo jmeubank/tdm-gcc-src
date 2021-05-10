@@ -22,7 +22,7 @@ struct A
 struct A2
 {
   operator auto () -> int;			// { dg-error "invalid use of|trailing return type" }
-  operator auto*() -> int;			// { dg-error "invalid use of|trailing return type" }
+  operator auto*() -> int;			// { dg-error "invalid use of|trailing return type|cannot be overloaded" }
 };
 
 template <typename> struct B
@@ -78,10 +78,10 @@ enum struct D : auto * { FF = 0 };		// { dg-error "must be an integral type|decl
 void
 bar ()
 {
-  try { } catch (auto i) { }			// { dg-error "parameter" }
-  try { } catch (auto) { }			// { dg-error "parameter" }
-  try { } catch (auto *i) { }			// { dg-error "parameter" }
-  try { } catch (auto *) { }			// { dg-error "parameter" }
+  try { } catch (auto i) { }			// { dg-error "18:parameter" }
+  try { } catch (auto) { }			// { dg-error "18:parameter" }
+  try { } catch (auto *i) { }			// { dg-error "18:parameter" }
+  try { } catch (auto *) { }			// { dg-error "18:parameter" }
 }
 
 void
@@ -111,7 +111,7 @@ badthrow2 () throw (auto &)			// { dg-error "invalid use of|expected" }
 {						// { dg-error "dynamic exception specification" "" { target c++17 } .-1 }
 }						// { dg-warning "deprecated" "" { target { ! c++17 } } .-2 }
 
-template <auto V = 4> struct G {};		// { dg-error "auto" "" { target { ! c++17 } } }
+template <auto V = 4> struct G {};		// { dg-error "11:parameter" "" { target { ! c++17 } } }
 
 template <typename T> struct H { H (); ~H (); };
 H<auto> h;					// { dg-error "invalid|initializer" }

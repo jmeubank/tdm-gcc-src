@@ -1,4 +1,4 @@
-// Copyright (C) 2019 Free Software Foundation, Inc.
+// Copyright (C) 2019-2020 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -37,9 +37,25 @@ test02()
   d = std::move(d);
 }
 
+void
+test03()
+{
+  std::filesystem::directory_iterator d;
+  auto d2 = std::move(d);
+}
+
+void
+test04()
+{
+  std::filesystem::recursive_directory_iterator d;
+  auto d2 = std::move(d);
+}
+
 int
 main()
 {
   test01();
   test02();
+  test03();
+  test04();
 }

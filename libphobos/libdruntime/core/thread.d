@@ -49,9 +49,17 @@ version (Solaris)
     import core.sys.solaris.sys.types;
 }
 
-// this should be true for most architectures
-version (GNU_StackGrowsDown)
+version (GNU)
+{
+    import gcc.builtins;
+    version (GNU_StackGrowsDown)
+        version = StackGrowsDown;
+}
+else
+{
+    // this should be true for most architectures
     version = StackGrowsDown;
+}
 
 /**
  * Returns the process ID of the calling process, which is guaranteed to be
@@ -299,11 +307,6 @@ else version (Posix)
         {
             import core.sys.darwin.mach.thread_act;
             import core.sys.darwin.pthread : pthread_mach_thread_np;
-        }
-
-        version (GNU)
-        {
-            import gcc.builtins;
         }
 
         //
@@ -1187,8 +1190,8 @@ class Thread
             }
             else
             {
-                // NOTE: pthread_setschedprio is not implemented on Darwin, FreeBSD or DragonFlyBSD, so use
-                //       the more complicated get/set sequence below.
+                // NOTE: pthread_setschedprio is not implemented on Darwin, FreeBSD, OpenBSD,
+                //       or DragonFlyBSD, so use the more complicated get/set sequence below.
                 int         policy;
                 sched_param param;
 
@@ -2404,93 +2407,84 @@ shared static ~this()
 // Used for needLock below.
 private __gshared bool multiThreadedFlag = false;
 
-version (PPC64) version = ExternStackShell;
-
-version (ExternStackShell)
+// Calls the given delegate, passing the current thread's stack pointer to it.
+private void callWithStackShell(scope void delegate(void* sp) nothrow fn) nothrow
+in
 {
-    extern(D) public void callWithStackShell(scope void delegate(void* sp) nothrow fn) nothrow;
+    assert(fn);
 }
-else
+body
 {
-    // Calls the given delegate, passing the current thread's stack pointer to it.
-    private void callWithStackShell(scope void delegate(void* sp) nothrow fn) nothrow
-    in
+    // The purpose of the 'shell' is to ensure all the registers get
+    // put on the stack so they'll be scanned. We only need to push
+    // the callee-save registers.
+    void *sp = void;
+
+    version (GNU)
     {
-        assert(fn);
+        __builtin_unwind_init();
+        sp = &sp;
     }
-    body
+    else version (AsmX86_Posix)
     {
-        // The purpose of the 'shell' is to ensure all the registers get
-        // put on the stack so they'll be scanned. We only need to push
-        // the callee-save registers.
-        void *sp = void;
-
-        version (GNU)
+        size_t[3] regs = void;
+        asm pure nothrow @nogc
         {
-            __builtin_unwind_init();
-            sp = &sp;
-        }
-        else version (AsmX86_Posix)
-        {
-            size_t[3] regs = void;
-            asm pure nothrow @nogc
-            {
-                mov [regs + 0 * 4], EBX;
-                mov [regs + 1 * 4], ESI;
-                mov [regs + 2 * 4], EDI;
+            mov [regs + 0 * 4], EBX;
+            mov [regs + 1 * 4], ESI;
+            mov [regs + 2 * 4], EDI;
 
-                mov sp[EBP], ESP;
-            }
+            mov sp[EBP], ESP;
         }
-        else version (AsmX86_Windows)
-        {
-            size_t[3] regs = void;
-            asm pure nothrow @nogc
-            {
-                mov [regs + 0 * 4], EBX;
-                mov [regs + 1 * 4], ESI;
-                mov [regs + 2 * 4], EDI;
-
-                mov sp[EBP], ESP;
-            }
-        }
-        else version (AsmX86_64_Posix)
-        {
-            size_t[5] regs = void;
-            asm pure nothrow @nogc
-            {
-                mov [regs + 0 * 8], RBX;
-                mov [regs + 1 * 8], R12;
-                mov [regs + 2 * 8], R13;
-                mov [regs + 3 * 8], R14;
-                mov [regs + 4 * 8], R15;
-
-                mov sp[RBP], RSP;
-            }
-        }
-        else version (AsmX86_64_Windows)
-        {
-            size_t[7] regs = void;
-            asm pure nothrow @nogc
-            {
-                mov [regs + 0 * 8], RBX;
-                mov [regs + 1 * 8], RSI;
-                mov [regs + 2 * 8], RDI;
-                mov [regs + 3 * 8], R12;
-                mov [regs + 4 * 8], R13;
-                mov [regs + 5 * 8], R14;
-                mov [regs + 6 * 8], R15;
-
-                mov sp[RBP], RSP;
-            }
-        }
-        else
-        {
-            static assert(false, "Architecture not supported.");
-        }
-
-        fn(sp);
     }
+    else version (AsmX86_Windows)
+    {
+        size_t[3] regs = void;
+        asm pure nothrow @nogc
+        {
+            mov [regs + 0 * 4], EBX;
+            mov [regs + 1 * 4], ESI;
+            mov [regs + 2 * 4], EDI;
+
+            mov sp[EBP], ESP;
+        }
+    }
+    else version (AsmX86_64_Posix)
+    {
+        size_t[5] regs = void;
+        asm pure nothrow @nogc
+        {
+            mov [regs + 0 * 8], RBX;
+            mov [regs + 1 * 8], R12;
+            mov [regs + 2 * 8], R13;
+            mov [regs + 3 * 8], R14;
+            mov [regs + 4 * 8], R15;
+
+            mov sp[RBP], RSP;
+        }
+    }
+    else version (AsmX86_64_Windows)
+    {
+        size_t[7] regs = void;
+        asm pure nothrow @nogc
+        {
+            mov [regs + 0 * 8], RBX;
+            mov [regs + 1 * 8], RSI;
+            mov [regs + 2 * 8], RDI;
+            mov [regs + 3 * 8], R12;
+            mov [regs + 4 * 8], R13;
+            mov [regs + 5 * 8], R14;
+            mov [regs + 6 * 8], R15;
+
+            mov sp[RBP], RSP;
+        }
+    }
+    else
+    {
+        static assert(false, "Architecture not supported.");
+    }
+
+    fn(sp);
 }
 
 // Used for suspendAll/resumeAll below.
@@ -3202,6 +3196,7 @@ extern (C) @nogc nothrow
     version (CRuntime_Glibc) int pthread_getattr_np(pthread_t thread, pthread_attr_t* attr);
     version (FreeBSD) int pthread_attr_get_np(pthread_t thread, pthread_attr_t* attr);
     version (NetBSD) int pthread_attr_get_np(pthread_t thread, pthread_attr_t* attr);
+    version (OpenBSD) int pthread_stackseg_np(pthread_t thread, stack_t* sinfo);
     version (DragonFlyBSD) int pthread_attr_get_np(pthread_t thread, pthread_attr_t* attr);
     version (Solaris) int thr_stksegment(stack_t* stk);
     version (CRuntime_Bionic) int pthread_getattr_np(pthread_t thid, pthread_attr_t* attr);
@@ -3294,6 +3289,13 @@ private void* getStackBottom() nothrow @nogc
         version (StackGrowsDown)
             addr += size;
         return addr;
+    }
+    else version (OpenBSD)
+    {
+        stack_t stk;
+
+        pthread_stackseg_np(pthread_self(), &stk);
+        return stk.ss_sp;
     }
     else version (DragonFlyBSD)
     {
@@ -4609,6 +4611,7 @@ private:
             version (Posix) import core.sys.posix.sys.mman; // mmap
             version (FreeBSD) import core.sys.freebsd.sys.mman : MAP_ANON;
             version (NetBSD) import core.sys.netbsd.sys.mman : MAP_ANON;
+            version (OpenBSD) import core.sys.openbsd.sys.mman : MAP_ANON;
             version (DragonFlyBSD) import core.sys.dragonflybsd.sys.mman : MAP_ANON;
             version (CRuntime_Glibc) import core.sys.linux.sys.mman : MAP_ANON;
             version (Darwin) import core.sys.darwin.sys.mman : MAP_ANON;
@@ -5275,6 +5278,23 @@ unittest
 
 
 // Multiple threads running shared fibers
+version (PPC)   version = UnsafeFiberMigration;
+version (PPC64) version = UnsafeFiberMigration;
+
+version (UnsafeFiberMigration)
+{
+    // XBUG: core.thread fibers are supposed to be safe to migrate across
+    // threads, however, there is a problem: GCC always assumes that the
+    // address of thread-local variables don't change while on a given stack.
+    // In consequence, migrating fibers between threads currently is an unsafe
+    // thing to do, and will break on some targets (possibly PR26461).
+}
+else
+{
+    version = FiberMigrationUnittest;
+}
+
+version (FiberMigrationUnittest)
 unittest
 {
     shared bool[10] locks;

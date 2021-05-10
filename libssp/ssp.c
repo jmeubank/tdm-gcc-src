@@ -1,5 +1,5 @@
 /* Stack protector support.
-   Copyright (C) 2005-2019 Free Software Foundation, Inc.
+   Copyright (C) 2005-2020 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -64,9 +64,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #endif
 #ifdef HAVE_SYSLOG_H
 # include <syslog.h>
-#endif
-#if defined (_WIN32) && !defined (__CYGWIN__)
-#include <wincrypt.h>
 #endif
 
 void *__stack_chk_guard = 0;

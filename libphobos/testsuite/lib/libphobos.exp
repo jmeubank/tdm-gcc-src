@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2019 Free Software Foundation, Inc.
+# Copyright (C) 2017-2020 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -162,12 +162,27 @@ proc libphobos_init { args } {
 	append ld_library_path ":${gccdir}"
     }
 
-    if { [file exists "${blddir}/libdruntime/.libs/libgdruntime.${shlib_ext}"] } {
-	append ld_library_path ":${blddir}/libdruntime/.libs"
-    }
-
     if { [file exists "${blddir}/src/.libs/libgphobos.${shlib_ext}"] } {
 	append ld_library_path ":${blddir}/src/.libs"
+    }
+
+    # Compute what needs to be added to the existing LD_LIBRARY_PATH.
+    if {$gccdir != ""} {
+	set compiler ${gccdir}/gdc
+
+	if { [is_remote host] == 0 && [which $compiler] != 0 } {
+	  foreach i "[exec $compiler --print-multi-lib]" {
+	    set mldir ""
+	    regexp -- "\[a-z0-9=_/\.-\]*;" $i mldir
+	    set mldir [string trimright $mldir "\;@"]
+	    if { "$mldir" == "." } {
+	      continue
+	    }
+	    if { [llength [glob -nocomplain ${gccdir}/${mldir}/libgcc_s*.so.*]] >= 1 } {
+	      append ld_library_path ":${gccdir}/${mldir}"
+	    }
+	  }
+	}
     }
 
     set_ld_library_path_env_vars
@@ -270,7 +285,7 @@ proc check_effective_target_linux_pre_2639 { } {
 
     if { [check_no_compiler_messages linux_pre_2639 assembly {
 	#include <linux/version.h>
-	#if !defined LINUX_VERSION_CODE || LINUX_VERSION_CODE < KERNEL_VERSION(2.6.39)
+	#if !defined LINUX_VERSION_CODE || LINUX_VERSION_CODE < KERNEL_VERSION(2,6,39)
 	#error Yes, it is.
 	#endif
     }] } {

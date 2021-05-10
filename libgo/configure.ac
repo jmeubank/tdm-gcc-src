@@ -10,7 +10,7 @@ AC_INIT(package-unused, version-unused,, libgo)
 AC_CONFIG_SRCDIR(Makefile.am)
 AC_CONFIG_HEADER(config.h)
 
-libtool_VERSION=14:0:0
+libtool_VERSION=16:0:0
 AC_SUBST(libtool_VERSION)
 
 AM_ENABLE_MULTILIB(, ..)
@@ -26,6 +26,7 @@ m4_rename([_AC_ARG_VAR_PRECIOUS],[glibgo_PRECIOUS])
 m4_define([_AC_ARG_VAR_PRECIOUS],[])
 AC_PROG_CC
 AC_PROG_GO
+AM_PROG_AS
 m4_rename_force([glibgo_PRECIOUS],[_AC_ARG_VAR_PRECIOUS])
 
 AC_SUBST(CFLAGS)
@@ -79,6 +80,8 @@ AC_ARG_ENABLE([version-specific-runtime-libs],
   [version_specific_libs=no])
 AC_MSG_RESULT($version_specific_libs)
 
+GCC_WITH_TOOLEXECLIBDIR
+
 # Version-specific runtime libs processing.
 if test $version_specific_libs = yes; then
   glibgo_toolexecdir='${libdir}/gcc/${host_alias}'
@@ -90,7 +93,14 @@ fi
 if test -n "$with_cross_host" &&
    test x"$with_cross_host" != x"no"; then
   nover_glibgo_toolexecdir='${exec_prefix}/${host_alias}'
-  nover_glibgo_toolexeclibdir='${toolexecdir}/lib'
+  case ${with_toolexeclibdir} in
+    no)
+      nover_glibgo_toolexeclibdir='${toolexecdir}/lib'
+      ;;
+    *)
+      nover_glibgo_toolexeclibdir=${with_toolexeclibdir}
+      ;;
+  esac
 else
   nover_glibgo_toolexecdir='${libdir}/gcc/${host_alias}'
   nover_glibgo_toolexeclibdir='${libdir}'
@@ -153,7 +163,7 @@ AC_SUBST(go_include)
 # All known GOOS values.  This is the union of all operating systems
 # supported by the gofrontend and all operating systems supported by
 # the gc toolchain.
-ALLGOOS="aix android darwin dragonfly freebsd hurd irix js linux netbsd openbsd plan9 rtems solaris windows"
+ALLGOOS="aix android darwin dragonfly freebsd hurd illumos irix js linux netbsd openbsd plan9 rtems solaris windows"
 
 is_darwin=no
 is_freebsd=no
@@ -238,6 +248,9 @@ case ${host} in
     ;;
   aarch64-*-*)
     GOARCH=arm64
+    ;;
+  aarch64_be-*-*)
+    GOARCH=arm64be
     ;;
   arm*-*-* | strongarm*-*-* | ep9312*-*-* | xscale-*-*)
     GOARCH=arm
@@ -353,6 +366,8 @@ AC_SUBST(GOARCH)
 AC_SUBST(ALLGOARCH)
 AC_SUBST(ALLGOARCHFAMILY)
 
+AM_CONDITIONAL(LIBGO_IS_X86, test "$GOARCH" = "386" -o "$GOARCH" = "amd64" -o "$GOARCH" = "amd64p32")
+
 FUNCTION_DESCRIPTORS=false
 case ${host} in
   rs6000*-*-* | powerpc*-*-*)
@@ -397,7 +412,7 @@ case "$target" in
 	# msghdr in <sys/socket.h>.
 	OSCFLAGS="$OSCFLAGS -D_XOPEN_SOURCE=500"
 	;;
-    *-*-solaris2.1[[01]])
+    *-*-solaris2.*)
 	# Solaris 10+ needs this so struct msghdr gets the msg_control
 	# etc. fields in <sys/socket.h> (_XPG4_2).  _XOPEN_SOURCE=600 as
 	# above doesn't work with C99.
@@ -874,7 +889,7 @@ else
   multilib_arg=
 fi
 
-AC_CONFIG_FILES(Makefile testsuite/Makefile)
+AC_CONFIG_FILES(Makefile testsuite/Makefile testsuite/libgo-test-support.exp)
 
 AC_CONFIG_COMMANDS([default],
 [if test -n "$CONFIG_FILES"; then

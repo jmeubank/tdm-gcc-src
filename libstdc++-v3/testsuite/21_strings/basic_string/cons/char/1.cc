@@ -1,6 +1,6 @@
 // 1999-06-04 bkoz
 
-// Copyright (C) 1999-2019 Free Software Foundation, Inc.
+// Copyright (C) 1999-2020 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -18,6 +18,8 @@
 // <http://www.gnu.org/licenses/>.
 
 // 21.3.1 basic_string constructors.
+
+// { dg-options "-Wno-stringop-overflow" }
 
 #include <new>
 #include <stdexcept>

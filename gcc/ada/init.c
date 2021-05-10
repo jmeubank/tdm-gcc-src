@@ -54,8 +54,14 @@
 #endif
 
 #ifdef IN_RTS
+
+#ifdef STANDALONE
+#include "runtime.h"
+#else
 #include "tconfig.h"
 #include "tsystem.h"
+#endif
+
 #include <sys/stat.h>
 
 /* We don't have libiberty, so use malloc.  */
@@ -463,6 +469,7 @@ void fake_linux_sigemptyset (sigset_t *set)
 void
 __gnat_adjust_context_for_raise (int signo ATTRIBUTE_UNUSED, void *ucontext)
 {
+#ifndef STANDALONE
   mcontext_t *mcontext = &((ucontext_t *) ucontext)->uc_mcontext;
 
   /* On the i386 and x86-64 architectures, stack checking is performed by
@@ -511,6 +518,7 @@ __gnat_adjust_context_for_raise (int signo ATTRIBUTE_UNUSED, void *ucontext)
      mode (arm vs thumb) as the signaling compilation unit, this works.  */
   if (mcontext->arm_cpsr & (1<<CPSR_THUMB_BIT))
     mcontext->arm_pc+=1;
+#endif
 #endif
 #endif
 }
@@ -570,12 +578,8 @@ __gnat_error_handler (int sig, siginfo_t *si ATTRIBUTE_UNUSED, void *ucontext)
 
 #ifndef __ia64__
 #define HAVE_GNAT_ALTERNATE_STACK 1
-/* This must be in keeping with System.OS_Interface.Alternate_Stack_Size.
-   It must be larger than MINSIGSTKSZ and hopefully near 2 * SIGSTKSZ.  */
-# if 16 * 1024 < MINSIGSTKSZ
-#  error "__gnat_alternate_stack too small"
-# endif
-char __gnat_alternate_stack[16 * 1024];
+/* This must be in keeping with System.OS_Interface.Alternate_Stack_Size.  */
+char __gnat_alternate_stack[32 * 1024];
 #endif
 
 #ifdef __XENO__
@@ -1556,7 +1560,7 @@ int __gl_heap_size = 64;
    operation, drivide by zero, and overflow. This will prevent the VMS runtime
    (specifically OTS$CHECK_FP_MODE) from complaining about inconsistent
    floating point settings in a mixed language program. Ideally the setting
-   would be determined at link time based on setttings in the object files,
+   would be determined at link time based on settings in the object files,
    however the VMS linker seems to take the setting from the first object
    in the link, e.g. pcrt0.o which is float representation neutral.  */
 char __gl_float_format = 'I';
@@ -1725,7 +1729,7 @@ __gnat_install_handler (void)
 #include <iv.h>
 #endif
 
-#if ((defined (ARMEL) && (_WRS_VXWORKS_MAJOR == 6)) || defined (__x86_64__)) && !defined(__RTP__)
+#if ((defined (ARMEL) && (_WRS_VXWORKS_MAJOR == 6))) && !defined(__RTP__)
 #define VXWORKS_FORCE_GUARD_PAGE 1
 #include <vmLib.h>
 extern size_t vxIntStackOverflowSize;

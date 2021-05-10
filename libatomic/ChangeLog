@@ -1,10 +1,83 @@
-2019-08-12  Release Manager
+2021-04-08  Release Manager
 
-	* GCC 9.2.0 released.
+	* GCC 10.3.0 released.
 
-2019-05-03  Release Manager
+2021-01-03  Iain Sandoe  <iain@sandoe.co.uk>
+	    Jakub Jelinek   <jakub@redhat.com>
 
-	* GCC 9.1.0 released.
+	PR target/97865
+	* configure: Regenerate.
+
+2020-07-23  Release Manager
+
+	* GCC 10.2.0 released.
+
+2020-05-07  Release Manager
+
+	* GCC 10.1.0 released.
+
+2020-04-19  Uroš Bizjak  <ubizjak@gmail.com>
+
+	* config/x86/fenv.c (__atomic_feraiseexcept) [__SSE_MATH__]:
+	Remove unneeded assignments to volatile memory.
+
+2020-04-06  Maciej W. Rozycki  <macro@wdc.com>
+
+	* configure.ac: Add testsuite/libatomic-site-extra.exp to output
+	files.
+	* configure: Regenerate.
+	* libatomic/testsuite/libatomic-site-extra.exp.in: New file.
+	* testsuite/Makefile.am (EXTRA_DEJAGNU_SITE_CONFIG): New
+	variable.
+	* testsuite/Makefile.in: Regenerate.
+
+2020-02-22  Jakub Jelinek  <jakub@redhat.com>
+
+	PR other/55930
+	* Makefile.am (M_DEPS): Guard the empty definition with
+	@AMDEP_FALSE@ rather than @AMDEP_TRUE@.
+	* Makefile.in: Regenerated.
+
+2020-02-22  Richard Purdie  <rpurdie@rpsys.net>
+
+	PR other/55930
+	* Makefile.am (M_DEPS): Honor -disable-dependency-tracking.
+	* Makefile.in: Regenerated.
+
+2020-01-24  Maciej W. Rozycki  <macro@wdc.com>
+
+	* configure.ac: Handle `--with-toolexeclibdir='.
+	* Makefile.in: Regenerate.
+	* aclocal.m4: Regenerate.
+	* configure: Regenerate.
+	* testsuite/Makefile.in: Regenerate.
+
+2020-01-01  Jakub Jelinek  <jakub@redhat.com>
+
+	Update copyright years.
+
+2019-09-27  Maciej W. Rozycki  <macro@wdc.com>
+
+	* configure: Regenerate.
+
+2019-09-10  Christophe Lyon  <christophe.lyon@st.com>
+
+        * configure.tgt: Handle arm*-*-uclinux*.
+        * configure: Regenerate.
+
+2019-09-03  Chung-Lin Tang  <cltang@codesourcery.com>
+
+	PR other/79543
+	* acinclude.m4 (LIBAT_CHECK_LINKER_FEATURES): Fix GNU ld --version
+	scanning to conform to the GNU Coding Standards.
+	* configure: Regenerate.
+
+2019-06-14  Matt Thomas  <matt@3am-software.com>
+	    Matthew Green  <mrg@eterna.com.au>
+	    Nick Hudson  <skrll@netbsd.org>
+	    Maya Rashish  <coypu@sdf.org>
+
+	* configure.tgt (arm*): Handle NetBSD in the same way as FreeBSD.
 
 2019-01-01  Jakub Jelinek  <jakub@redhat.com>
 
@@ -440,7 +513,7 @@
 
 	* Initial commit.
 
-Copyright (C) 2012-2019 Free Software Foundation, Inc.
+Copyright (C) 2012-2020 Free Software Foundation, Inc.
 
 Copying and distribution of this file, with or without modification,
 are permitted in any medium without royalty provided the copyright

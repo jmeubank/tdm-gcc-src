@@ -1,5 +1,5 @@
 // -*- C++ -*- Exception handling and frame unwind runtime interface routines.
-// Copyright (C) 2001-2019 Free Software Foundation, Inc.
+// Copyright (C) 2001-2020 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
@@ -36,7 +36,6 @@
 #include "unwind.h"
 #include <bits/atomic_word.h>
 #include <cxxabi.h>
-#include "shmem.h"
 
 #ifdef _GLIBCXX_HAVE_SYS_SDT_H
 #include <sys/sdt.h>
@@ -196,10 +195,8 @@ extern void __unexpected(std::unexpected_handler)
   __attribute__((__noreturn__));
 
 // The current installed user handlers.
-__SHMEM_DECLARE(std::terminate_handler, __terminate_handler_sh)
-#define __terminate_handler __SHMEM_GET(__terminate_handler_sh)
-__SHMEM_DECLARE(std::unexpected_handler, __unexpected_handler_sh)
-#define __unexpected_handler __SHMEM_GET(__unexpected_handler_sh)
+extern std::terminate_handler __terminate_handler;
+extern std::unexpected_handler __unexpected_handler;
 
 // These are explicitly GNU C++ specific.
 

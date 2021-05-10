@@ -195,7 +195,7 @@ func dumptype(t *_type) {
 		dwritebyte('.')
 		dwrite(name.str, uintptr(name.len))
 	}
-	dumpbool(t.kind&kindDirectIface == 0 || t.kind&kindNoPointers == 0)
+	dumpbool(t.kind&kindDirectIface == 0 || t.ptrdata != 0)
 }
 
 // dump an object
@@ -313,7 +313,7 @@ func finq_callback(fn *funcval, obj unsafe.Pointer, ft *functype, ot *ptrtype) {
 func dumproots() {
 	// MSpan.types
 	for _, s := range mheap_.allspans {
-		if s.state == mSpanInUse {
+		if s.state.get() == mSpanInUse {
 			// Finalizers
 			for sp := s.specials; sp != nil; sp = sp.next {
 				if sp.kind != _KindSpecialFinalizer {
@@ -336,7 +336,7 @@ var freemark [_PageSize / 8]bool
 
 func dumpobjs() {
 	for _, s := range mheap_.allspans {
-		if s.state != mSpanInUse {
+		if s.state.get() != mSpanInUse {
 			continue
 		}
 		p := s.base()
@@ -437,17 +437,15 @@ func dumpmemstats() {
 	dumpint(uint64(memstats.numgc))
 }
 
-func dumpmemprof_callback(b *bucket, nstk uintptr, pstk *location, size, allocs, frees uintptr) {
-	stk := (*[100000]location)(unsafe.Pointer(pstk))
+func dumpmemprof_callback(b *bucket, nstk uintptr, pstk *uintptr, size, allocs, frees uintptr) {
+	stk := (*[100000]uintptr)(unsafe.Pointer(pstk))
 	dumpint(tagMemProf)
 	dumpint(uint64(uintptr(unsafe.Pointer(b))))
 	dumpint(uint64(size))
 	dumpint(uint64(nstk))
 	for i := uintptr(0); i < nstk; i++ {
-		pc := stk[i].pc
-		fn := stk[i].function
-		file := stk[i].filename
-		line := stk[i].lineno
+		pc := stk[i]
+		fn, file, line, _ := funcfileline(pc, -1, false)
 		if fn == "" {
 			var buf [64]byte
 			n := len(buf)
@@ -485,7 +483,7 @@ func dumpmemprof_callback(b *bucket, nstk uintptr, pstk *location, size, allocs,
 func dumpmemprof() {
 	iterate_memprof(dumpmemprof_callback)
 	for _, s := range mheap_.allspans {
-		if s.state != mSpanInUse {
+		if s.state.get() != mSpanInUse {
 			continue
 		}
 		for sp := s.specials; sp != nil; sp = sp.next {
@@ -506,7 +504,7 @@ var dumphdr = []byte("go1.7 heap dump\n")
 func mdump() {
 	// make sure we're done sweeping
 	for _, s := range mheap_.allspans {
-		if s.state == mSpanInUse {
+		if s.state.get() == mSpanInUse {
 			s.ensureSwept()
 		}
 	}

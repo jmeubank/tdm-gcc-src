@@ -5,6 +5,8 @@
 package runtime_test
 
 import (
+	"fmt"
+	"internal/testenv"
 	"math"
 	"net"
 	"runtime"
@@ -359,6 +361,17 @@ func TestPreemptionGC(t *testing.T) {
 		runtime.GC()
 	}
 	atomic.StoreUint32(&stop, 1)
+}
+
+func TestAsyncPreempt(t *testing.T) {
+	if !runtime.PreemptMSupported {
+		t.Skip("asynchronous preemption not supported on this platform")
+	}
+	output := runTestProg(t, "testprog", "AsyncPreempt")
+	want := "OK\n"
+	if output != want {
+		t.Fatalf("want %s, got %s\n", want, output)
+	}
 }
 
 func TestGCFairness(t *testing.T) {
@@ -915,5 +928,137 @@ func TestLockOSThreadAvoidsStatePropagation(t *testing.T) {
 		t.Skip("unshare syscall not permitted on this system")
 	} else if output != want {
 		t.Errorf("want %q, got %q", want, output)
+	}
+}
+
+func TestLockOSThreadTemplateThreadRace(t *testing.T) {
+	testenv.MustHaveGoRun(t)
+
+	exe, err := buildTestProg(t, "testprog")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	iterations := 100
+	if testing.Short() {
+		// Reduce run time to ~100ms, with much lower probability of
+		// catching issues.
+		iterations = 5
+	}
+	for i := 0; i < iterations; i++ {
+		want := "OK\n"
+		output := runBuiltTestProg(t, exe, "LockOSThreadTemplateThreadRace")
+		if output != want {
+			t.Fatalf("run %d: want %q, got %q", i, want, output)
+		}
+	}
+}
+
+// fakeSyscall emulates a system call.
+//go:nosplit
+func fakeSyscall(duration time.Duration) {
+	runtime.Entersyscall()
+	for start := runtime.Nanotime(); runtime.Nanotime()-start < int64(duration); {
+	}
+	runtime.Exitsyscall()
+}
+
+// Check that a goroutine will be preempted if it is calling short system calls.
+func testPreemptionAfterSyscall(t *testing.T, syscallDuration time.Duration) {
+	if runtime.GOARCH == "wasm" {
+		t.Skip("no preemption on wasm yet")
+	}
+
+	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(2))
+
+	interations := 10
+	if testing.Short() {
+		interations = 1
+	}
+	const (
+		maxDuration = 3 * time.Second
+		nroutines   = 8
+	)
+
+	for i := 0; i < interations; i++ {
+		c := make(chan bool, nroutines)
+		stop := uint32(0)
+
+		start := time.Now()
+		for g := 0; g < nroutines; g++ {
+			go func(stop *uint32) {
+				c <- true
+				for atomic.LoadUint32(stop) == 0 {
+					fakeSyscall(syscallDuration)
+				}
+				c <- true
+			}(&stop)
+		}
+		// wait until all goroutines have started.
+		for g := 0; g < nroutines; g++ {
+			<-c
+		}
+		atomic.StoreUint32(&stop, 1)
+		// wait until all goroutines have finished.
+		for g := 0; g < nroutines; g++ {
+			<-c
+		}
+		duration := time.Since(start)
+
+		if duration > maxDuration {
+			t.Errorf("timeout exceeded: %v (%v)", duration, maxDuration)
+		}
+	}
+}
+
+func TestPreemptionAfterSyscall(t *testing.T) {
+	for _, i := range []time.Duration{10, 100, 1000} {
+		d := i * time.Microsecond
+		t.Run(fmt.Sprint(d), func(t *testing.T) {
+			testPreemptionAfterSyscall(t, d)
+		})
+	}
+}
+
+func TestGetgThreadSwitch(t *testing.T) {
+	runtime.RunGetgThreadSwitchTest()
+}
+
+// TestNetpollBreak tests that netpollBreak can break a netpoll.
+// This test is not particularly safe since the call to netpoll
+// will pick up any stray files that are ready, but it should work
+// OK as long it is not run in parallel.
+func TestNetpollBreak(t *testing.T) {
+	if runtime.GOMAXPROCS(0) == 1 {
+		t.Skip("skipping: GOMAXPROCS=1")
+	}
+
+	// Make sure that netpoll is initialized.
+	runtime.NetpollGenericInit()
+
+	start := time.Now()
+	c := make(chan bool, 2)
+	go func() {
+		c <- true
+		runtime.Netpoll(10 * time.Second.Nanoseconds())
+		c <- true
+	}()
+	<-c
+	// Loop because the break might get eaten by the scheduler.
+	// Break twice to break both the netpoll we started and the
+	// scheduler netpoll.
+loop:
+	for {
+		runtime.Usleep(100)
+		runtime.NetpollBreak()
+		runtime.NetpollBreak()
+		select {
+		case <-c:
+			break loop
+		default:
+		}
+	}
+	if dur := time.Since(start); dur > 5*time.Second {
+		t.Errorf("netpollBreak did not interrupt netpoll: slept for: %v", dur)
 	}
 }

@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2019 Free Software Foundation, Inc.
+// Copyright (C) 2017-2020 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -52,8 +52,12 @@
 #define b (
 #endif
 // <queue> and <stack> defined data members called c
+#if __cplusplus <= 201703L
+// <chrono> defines operator""d in C++20
 #define d (
+// <numbers> defines std::numbers::e in C++20
 #define e (
+#endif
 #define f (
 #define g (
 #if __cplusplus >= 201402L
@@ -95,10 +99,22 @@
 #define v (
 #define w (
 #define x (
+#if __cplusplus <= 201703L
+// <chrono> defines operator""y in C++20
 #define y (
+#endif
 #define z (
 
 #define tmp (
+
+#if __cplusplus < 201103L
+#define uses_allocator  (
+#endif
+
+#if __cplusplus < 201402L
+// <complex> defines operator""il
+#define il  (
+#endif
 
 #if __cplusplus < 201703L
 // <charconv> defines to_chars_result::ptr and to_chars_result::ec
@@ -113,6 +129,7 @@
 #define BidirectionalIterator	BidirectionalIterator is not a reserved name
 #define RandomAccessIterator	RandomAccessIterator is not a reserved name
 #define RandomAccessOutputIterator	RandomAccessOutputIterator is not a reserved name
+#define RAI			RAI is not a reserved name
 #define RAIter			RAIter is not a reserved name
 #define FwdIter			FwdIter is not a reserved name
 #define OutIter			OutIter is not a reserved name
@@ -176,6 +193,8 @@
 #undef r
 #undef x
 #undef y
+// <sys/var.h> defines vario::v
+#undef v
 #endif
 
 #ifdef __hpux__

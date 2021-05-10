@@ -1,6 +1,6 @@
 // Wrapper of C-language FILE struct -*- C++ -*-
 
-// Copyright (C) 2000-2019 Free Software Foundation, Inc.
+// Copyright (C) 2000-2020 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -236,7 +236,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     const char* __c_mode = fopen_mode(__mode);
     if (__c_mode && !this->is_open())
       {
-#if defined(_GLIBCXX_USE_LFS) || defined(__MINGW32__)
+#ifdef _GLIBCXX_USE_LFS
 	if ((_M_cfile = fopen64(__name, __c_mode)))
 #else
 	if ((_M_cfile = fopen(__name, __c_mode)))
@@ -344,7 +344,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   streamoff
   __basic_file<char>::seekoff(streamoff __off, ios_base::seekdir __way) throw ()
   {
-#if defined(_GLIBCXX_USE_LFS) || defined(__MINGW32__)
+#ifdef _GLIBCXX_USE_LFS
     return lseek64(this->fd(), __off, __way);
 #else
     if (__off > numeric_limits<off_t>::max()
@@ -385,15 +385,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #ifdef _GLIBCXX_USE_LFS
     struct stat64 __buffer;
     const int __err = fstat64(this->fd(), &__buffer);
-    if (!__err && _GLIBCXX_ISREG(__buffer.st_mode))
-      {
-	const streamoff __off = __buffer.st_size - lseek64(this->fd(), 0,
-							   ios_base::cur);
-	return std::min(__off, streamoff(numeric_limits<streamsize>::max()));
-      }
-#elif defined(__MINGW32__)
-    struct _stati64 __buffer;
-    const int __err = _fstati64(this->fd(), &__buffer);
     if (!__err && _GLIBCXX_ISREG(__buffer.st_mode))
       {
 	const streamoff __off = __buffer.st_size - lseek64(this->fd(), 0,

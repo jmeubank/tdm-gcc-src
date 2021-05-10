@@ -1,10 +1,76 @@
-2019-08-12  Release Manager
+2021-04-08  Release Manager
 
-	* GCC 9.2.0 released.
+	* GCC 10.3.0 released.
 
-2019-05-03  Release Manager
+2020-07-23  Release Manager
 
-	* GCC 9.1.0 released.
+	* GCC 10.2.0 released.
+
+2020-05-07  Release Manager
+
+	* GCC 10.1.0 released.
+
+2020-04-15  Ian Lance Taylor  <iant@golang.org>
+
+	PR go/94607
+	* go-gcc.cc (class Gcc_backend): Define builtin_const,
+	builtin_noreturn, builtin_novops.
+	(Gcc_backend::define_builtin): Change const_p and noreturn_p
+	parameters to a single flags parameter.  Change all callers.
+	(Gcc_backend::Gcc_backend): Pass novops for prefetch.
+
+2020-01-01  Jakub Jelinek  <jakub@redhat.com>
+
+	Update copyright years.
+
+	* gccgo.texi: Bump @copyrights-go year.
+
+2019-11-12  Martin Liska  <mliska@suse.cz>
+
+	* go-lang.c (go_langhook_post_options):
+	Use SET_OPTION_IF_UNSET.
+
+2019-09-04  Ian Lance Taylor  <iant@golang.org>
+
+	PR tree-optimization/91663
+	* go-lang.c (go_langhook_post_options): Clear
+	flag_partial_inlining.
+
+2019-08-23  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/91283
+	* go-lang.c (go_langhook_post_options): Set flag_excess_precision
+	instead of flag_excess_precision_cmdline.
+
+2019-07-02  Cherry Zhang  <cherryyz@google.com>
+
+	* go-gcc.cc (Gcc_backend::Gcc_backend): Define __builtin_memset.
+
+2019-06-21  Cherry Zhang  <cherryyz@google.com>
+
+	* go-gcc.cc (Gcc_backend::Gcc_backend): Define math/bits
+	builtins.
+
+2019-05-30  Jim Wilson  <jimw@sifive.com>
+
+	* go-gcc.cc (Gcc_backend::Gcc_backend): Add BUILT_IN_ATOMIC_FETCH_AND_1
+	and BUILT_IN_ATOMIC_FETCH_OR_1.
+
+2019-05-16  Cherry Zhang  <cherryyz@google.com>
+
+	* go-gcc.cc (Gcc_backend::Gcc_backend): Define atomic builtins.
+
+2019-05-08  Cherry Zhang  <cherryyz@google.com>
+
+	* go-gcc.cc (Gcc_backend::Gcc_backend): Define memmove builtin.
+
+2019-05-07  Cherry Zhang  <cherryyz@google.com>
+
+	* lang.opt (-fgo-debug-optimization): New option.
+	* go-c.h (struct go_create_gogo_args): Add debug_optimization
+	field.
+	* go-lang.c (go_langhook_init): Set debug_optimization field.
+	* gccgo.texi (Invoking gccgo): Document -fgo-debug-optimization.
 
 2019-03-06  Ian Lance Taylor  <iant@golang.org>
 
@@ -29,10 +95,10 @@
 
 2019-02-05  Nikhil Benesch  <nikhil.benesch@gmail.com>
 
-        PR go/89019
-        * go-gcc.cc (Gcc_backend::placeholder_struct_type): Mark
-        placeholder structs as requiring structural equality.
-        (Gcc_backend::set_placeholder_pointer_type): Propagate the
+	PR go/89019
+	* go-gcc.cc (Gcc_backend::placeholder_struct_type): Mark
+	placeholder structs as requiring structural equality.
+	(Gcc_backend::set_placeholder_pointer_type): Propagate the
 	canonical type from the desired pointer type to the placeholder
 	pointer type.
 
@@ -930,7 +996,7 @@
 2013-11-22  Andrew MacLeod  <amacleod@redhat.com>
 
 	* go-gcc.cc: Add required include files from gimple.h.
-	* go-lang.c: Likewise
+	* go-lang.c: Likewise.
 
 2013-11-18  Richard Sandiford  <rdsandiford@googlemail.com>
 
@@ -1645,7 +1711,7 @@
 
 	Go frontend added to gcc repository.
 
-Copyright (C) 2010-2019 Free Software Foundation, Inc.
+Copyright (C) 2010-2020 Free Software Foundation, Inc.
 
 Copying and distribution of this file, with or without modification,
 are permitted in any medium without royalty provided the copyright

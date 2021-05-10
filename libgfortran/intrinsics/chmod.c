@@ -1,5 +1,5 @@
 /* Implementation of the CHMOD intrinsic.
-   Copyright (C) 2006-2019 Free Software Foundation, Inc.
+   Copyright (C) 2006-2020 Free Software Foundation, Inc.
    Contributed by François-Xavier Coudert <coudert@clipper.ens.fr>
 
 This file is part of the GNU Fortran runtime library (libgfortran).
@@ -28,7 +28,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #if defined(HAVE_SYS_STAT_H)
 
 #include <sys/stat.h>	/* For stat, chmod and umask.  */
-#include <io.h>	/* For umask on MinGW.  */
 
 
 /* INTEGER FUNCTION CHMOD (NAME, MODE)

@@ -820,7 +820,7 @@ mostlyclean-local:
 @NATIVE_TRUE@go$(EXEEXT): $(go_cmd_go_files) $(LIBGOTOOL) $(LIBGODEP)
 @NATIVE_TRUE@	$(GOLINK) $(go_cmd_go_files) $(LIBGOTOOL) $(LIBS) $(NET_LIBS)
 @NATIVE_TRUE@gofmt$(EXEEXT): $(go_cmd_gofmt_files) $(LIBGODEP)
-@NATIVE_TRUE@	$(GOLINK) $(go_cmd_gofmt_files) $(LIBS) $(NET_LIBS)
+@NATIVE_TRUE@	$(GOLINK) $(go_cmd_gofmt_files) $(LIBGOTOOL) $(LIBS) $(NET_LIBS)
 @NATIVE_TRUE@cgo$(EXEEXT): $(go_cmd_cgo_files) zdefaultcc.go $(LIBGOTOOL) $(LIBGODEP)
 @NATIVE_TRUE@	$(GOLINK) $(go_cmd_cgo_files) zdefaultcc.go $(LIBGOTOOL) $(LIBS) $(NET_LIBS)
 @NATIVE_TRUE@vet$(EXEEXT): $(go_cmd_vet_files) $(LIBGOTOOL) $(LIBGODEP)
@@ -878,7 +878,7 @@ mostlyclean-local:
 
 # check-go-tool runs `go test cmd/go` in our environment.
 @NATIVE_TRUE@check-go-tool: go$(EXEEXT) $(noinst_PROGRAMS) check-head check-gccgo check-gcc
-@NATIVE_TRUE@	-chmod -R u+w check-go-dir
+@NATIVE_TRUE@	if test -d check-go-dir; then chmod -R u+w check-go-dir; fi
 @NATIVE_TRUE@	rm -rf check-go-dir cmd_go-testlog
 @NATIVE_TRUE@	$(MKDIR_P) check-go-dir/src/cmd/go
 @NATIVE_TRUE@	cp $(cmdsrcdir)/go/*.go check-go-dir/src/cmd/go/
@@ -886,6 +886,10 @@ mostlyclean-local:
 @NATIVE_TRUE@	cp $(libgodir)/zdefaultcc.go check-go-dir/src/cmd/go/internal/cfg/
 @NATIVE_TRUE@	cp -r $(cmdsrcdir)/go/testdata check-go-dir/src/cmd/go/
 @NATIVE_TRUE@	cp -r $(cmdsrcdir)/internal check-go-dir/src/cmd/
+@NATIVE_TRUE@	$(MKDIR_P) check-go-dir/src/cmd/vendor/golang.org/x
+@NATIVE_TRUE@	cp -r $(libgosrcdir)/golang.org/x/mod check-go-dir/src/cmd/vendor/golang.org/x/
+@NATIVE_TRUE@	cp -r $(libgosrcdir)/golang.org/x/crypto check-go-dir/src/cmd/vendor/golang.org/x/
+@NATIVE_TRUE@	cp -r $(libgosrcdir)/golang.org/x/xerrors check-go-dir/src/cmd/vendor/golang.org/x/
 @NATIVE_TRUE@	cp $(libgodir)/objabi.go check-go-dir/src/cmd/internal/objabi/
 @NATIVE_TRUE@	@abs_libgodir=`cd $(libgodir) && $(PWD_COMMAND)`; \
 @NATIVE_TRUE@	abs_checkdir=`cd check-go-dir && $(PWD_COMMAND)`; \
@@ -919,7 +923,7 @@ mostlyclean-local:
 @NATIVE_TRUE@	$(SHELL) $(libgosrcdir)/../testsuite/gotest --goarch=$${GOARCH} --goos=$${GOOS} --basedir=$(libgosrcdir)/.. --srcdir=$(libgosrcdir)/runtime --pkgpath=runtime --pkgfiles="$${files}" $(GOTESTFLAGS) -test.timeout=$(GOTOOLS_TEST_TIMEOUT)s -test.v >> runtime-testlog 2>&1 || echo "--- $${fl}: go test runtime (0.00s)" >> runtime-testlog
 @NATIVE_TRUE@	grep '^--- ' runtime-testlog | sed -e 's/^--- \(.*\) ([^)]*)$$/\1/' | sort -k 2
 
-# check-cgo-test runs `go test misc/cgo/test` in our environment.
+# check-cgo-test runs `go test` in misc/cgo/test.
 @NATIVE_TRUE@check-cgo-test: go$(EXEEXT) $(noinst_PROGRAMS) check-head check-gccgo check-gcc
 @NATIVE_TRUE@	rm -rf cgo-test-dir cgo-testlog
 @NATIVE_TRUE@	$(MKDIR_P) cgo-test-dir/misc/cgo
@@ -932,18 +936,18 @@ mostlyclean-local:
 @NATIVE_TRUE@	(cd cgo-test-dir/misc/cgo/test && $(abs_builddir)/go$(EXEEXT) test -test.short -test.timeout=$(GOTOOLS_TEST_TIMEOUT)s -test.v) >> cgo-testlog 2>&1 || echo "--- $${fl}: go test misc/cgo/test (0.00s)" >> cgo-testlog
 @NATIVE_TRUE@	grep '^--- ' cgo-testlog | sed -e 's/^--- \(.*\) ([^)]*)$$/\1/' | sort -k 2
 
-# check-carchive-test runs `go test misc/cgo/testcarchive/carchive_test.go`
+# check-carchive-test runs `go test` in misc/cgo/testcarchive.
 # in our environment.
 @NATIVE_TRUE@check-carchive-test: go$(EXEEXT) $(noinst_PROGRAMS) check-head check-gccgo check-gcc
 @NATIVE_TRUE@	rm -rf carchive-test-dir carchive-testlog
 @NATIVE_TRUE@	$(MKDIR_P) carchive-test-dir/misc/cgo
 @NATIVE_TRUE@	cp -r $(libgomiscdir)/cgo/testcarchive carchive-test-dir/misc/cgo/
 @NATIVE_TRUE@	@abs_libgodir=`cd $(libgodir) && $(PWD_COMMAND)`; \
-@NATIVE_TRUE@	echo "cd carchive-test-dir/misc/cgo/testcarchive && $(ECHO_ENV) LIBRARY_PATH=`echo $${abs_libgodir}/.libs` $(abs_builddir)/go$(EXEEXT) test -test.timeout=$(GOTOOLS_TEST_TIMEOUT)s -test.v carchive_test.go" > carchive-testlog
+@NATIVE_TRUE@	echo "cd carchive-test-dir/misc/cgo/testcarchive && $(ECHO_ENV) LIBRARY_PATH=`echo $${abs_libgodir}/.libs` $(abs_builddir)/go$(EXEEXT) test -test.timeout=$(GOTOOLS_TEST_TIMEOUT)s -test.v" > carchive-testlog
 @NATIVE_TRUE@	$(CHECK_ENV) \
 @NATIVE_TRUE@	LIBRARY_PATH=`echo $${abs_libgodir}/.libs:$${LIBRARY_PATH} | sed 's,::*,:,g;s,^:*,,;s,:*$$,,'`; \
 @NATIVE_TRUE@	export LIBRARY_PATH; \
-@NATIVE_TRUE@	(cd carchive-test-dir/misc/cgo/testcarchive && $(abs_builddir)/go$(EXEEXT) test -test.timeout=$(GOTOOLS_TEST_TIMEOUT)s -test.v carchive_test.go) >> carchive-testlog 2>&1 || echo "--- $${fl}: go test misc/cgo/testcarchive (0.00s)" >> carchive-testlog
+@NATIVE_TRUE@	(cd carchive-test-dir/misc/cgo/testcarchive && $(abs_builddir)/go$(EXEEXT) test -test.timeout=$(GOTOOLS_TEST_TIMEOUT)s -test.v) >> carchive-testlog 2>&1 || echo "--- $${fl}: go test misc/cgo/testcarchive (0.00s)" >> carchive-testlog
 @NATIVE_TRUE@	grep '^--- ' carchive-testlog | sed -e 's/^--- \(.*\) ([^)]*)$$/\1/' | sort -k 2
 
 # check-vet runs `go test cmd/vet` in our environment.

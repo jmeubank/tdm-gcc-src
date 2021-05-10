@@ -1,4 +1,4 @@
-#   Copyright (C) 1997-2019 Free Software Foundation, Inc.
+#   Copyright (C) 1997-2020 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -175,6 +175,16 @@ proc dg-require-ascii-locale { args } {
 
 proc dg-require-iconv { args } {
     if { ![ check_iconv_available ${args} ] } {
+	upvar dg-do-what dg-do-what
+        set dg-do-what [list [lindex ${dg-do-what} 0] "N" "P"]
+    }
+}
+
+# If this host does not have "dot", skip this test.
+
+proc dg-require-dot { args } {
+    verbose "dg-require-dot" 2
+    if { ![ check_dot_available ] } {
 	upvar dg-do-what dg-do-what
         set dg-do-what [list [lindex ${dg-do-what} 0] "N" "P"]
     }

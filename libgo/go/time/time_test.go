@@ -9,7 +9,6 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
-	"internal/race"
 	"math/big"
 	"math/rand"
 	"os"
@@ -522,13 +521,28 @@ var yearDayLocations = []*Location{
 }
 
 func TestYearDay(t *testing.T) {
-	for _, loc := range yearDayLocations {
+	for i, loc := range yearDayLocations {
 		for _, ydt := range yearDayTests {
 			dt := Date(ydt.year, Month(ydt.month), ydt.day, 0, 0, 0, 0, loc)
 			yday := dt.YearDay()
 			if yday != ydt.yday {
-				t.Errorf("got %d, expected %d for %d-%02d-%02d in %v",
-					yday, ydt.yday, ydt.year, ydt.month, ydt.day, loc)
+				t.Errorf("Date(%d-%02d-%02d in %v).YearDay() = %d, want %d",
+					ydt.year, ydt.month, ydt.day, loc, yday, ydt.yday)
+				continue
+			}
+
+			if ydt.year < 0 || ydt.year > 9999 {
+				continue
+			}
+			f := fmt.Sprintf("%04d-%02d-%02d %03d %+.2d00",
+				ydt.year, ydt.month, ydt.day, ydt.yday, (i-2)*4)
+			dt1, err := Parse("2006-01-02 002 -0700", f)
+			if err != nil {
+				t.Errorf(`Parse("2006-01-02 002 -0700", %q): %v`, f, err)
+				continue
+			}
+			if !dt1.Equal(dt) {
+				t.Errorf(`Parse("2006-01-02 002 -0700", %q) = %v, want %v`, f, dt1, dt)
 			}
 		}
 	}
@@ -980,6 +994,7 @@ var subTests = []struct {
 	{Date(2300, 1, 1, 0, 0, 0, 0, UTC), Date(2000, 1, 1, 0, 0, 0, 0, UTC), Duration(maxDuration)},
 	{Date(2000, 1, 1, 0, 0, 0, 0, UTC), Date(2290, 1, 1, 0, 0, 0, 0, UTC), -290*365*24*Hour - 71*24*Hour},
 	{Date(2000, 1, 1, 0, 0, 0, 0, UTC), Date(2300, 1, 1, 0, 0, 0, 0, UTC), Duration(minDuration)},
+	{Date(2311, 11, 26, 02, 16, 47, 63535996, UTC), Date(2019, 8, 16, 2, 29, 30, 268436582, UTC), 9223372036795099414},
 	{MinMonoTime, MaxMonoTime, minDuration},
 	{MaxMonoTime, MinMonoTime, maxDuration},
 }
@@ -1006,7 +1021,39 @@ var nsDurationTests = []struct {
 func TestDurationNanoseconds(t *testing.T) {
 	for _, tt := range nsDurationTests {
 		if got := tt.d.Nanoseconds(); got != tt.want {
-			t.Errorf("d.Nanoseconds() = %d; want: %d", got, tt.want)
+			t.Errorf("Duration(%s).Nanoseconds() = %d; want: %d", tt.d, got, tt.want)
+		}
+	}
+}
+
+var usDurationTests = []struct {
+	d    Duration
+	want int64
+}{
+	{Duration(-1000), -1},
+	{Duration(1000), 1},
+}
+
+func TestDurationMicroseconds(t *testing.T) {
+	for _, tt := range usDurationTests {
+		if got := tt.d.Microseconds(); got != tt.want {
+			t.Errorf("Duration(%s).Microseconds() = %d; want: %d", tt.d, got, tt.want)
+		}
+	}
+}
+
+var msDurationTests = []struct {
+	d    Duration
+	want int64
+}{
+	{Duration(-1000000), -1},
+	{Duration(1000000), 1},
+}
+
+func TestDurationMilliseconds(t *testing.T) {
+	for _, tt := range msDurationTests {
+		if got := tt.d.Milliseconds(); got != tt.want {
+			t.Errorf("Duration(%s).Milliseconds() = %d; want: %d", tt.d, got, tt.want)
 		}
 	}
 }
@@ -1021,7 +1068,7 @@ var secDurationTests = []struct {
 func TestDurationSeconds(t *testing.T) {
 	for _, tt := range secDurationTests {
 		if got := tt.d.Seconds(); got != tt.want {
-			t.Errorf("d.Seconds() = %g; want: %g", got, tt.want)
+			t.Errorf("Duration(%s).Seconds() = %g; want: %g", tt.d, got, tt.want)
 		}
 	}
 }
@@ -1040,7 +1087,7 @@ var minDurationTests = []struct {
 func TestDurationMinutes(t *testing.T) {
 	for _, tt := range minDurationTests {
 		if got := tt.d.Minutes(); got != tt.want {
-			t.Errorf("d.Minutes() = %g; want: %g", got, tt.want)
+			t.Errorf("Duration(%s).Minutes() = %g; want: %g", tt.d, got, tt.want)
 		}
 	}
 }
@@ -1059,7 +1106,7 @@ var hourDurationTests = []struct {
 func TestDurationHours(t *testing.T) {
 	for _, tt := range hourDurationTests {
 		if got := tt.d.Hours(); got != tt.want {
-			t.Errorf("d.Hours() = %g; want: %g", got, tt.want)
+			t.Errorf("Duration(%s).Hours() = %g; want: %g", tt.d, got, tt.want)
 		}
 	}
 }
@@ -1345,23 +1392,11 @@ func TestReadFileLimit(t *testing.T) {
 }
 
 // Issue 25686: hard crash on concurrent timer access.
+// Issue 37400: panic with "racy use of timers"
 // This test deliberately invokes a race condition.
-// We are testing that we don't crash with "fatal error: panic holding locks".
+// We are testing that we don't crash with "fatal error: panic holding locks",
+// and that we also don't panic.
 func TestConcurrentTimerReset(t *testing.T) {
-	if race.Enabled {
-		t.Skip("skipping test under race detector")
-	}
-
-	// We expect this code to panic rather than crash.
-	// Don't worry if it doesn't panic.
-	catch := func(i int) {
-		if e := recover(); e != nil {
-			t.Logf("panic in goroutine %d, as expected, with %q", i, e)
-		} else {
-			t.Logf("no panic in goroutine %d", i)
-		}
-	}
-
 	const goroutines = 8
 	const tries = 1000
 	var wg sync.WaitGroup
@@ -1370,10 +1405,31 @@ func TestConcurrentTimerReset(t *testing.T) {
 	for i := 0; i < goroutines; i++ {
 		go func(i int) {
 			defer wg.Done()
-			defer catch(i)
 			for j := 0; j < tries; j++ {
 				timer.Reset(Hour + Duration(i*j))
 			}
+		}(i)
+	}
+	wg.Wait()
+}
+
+// Issue 37400: panic with "racy use of timers".
+func TestConcurrentTimerResetStop(t *testing.T) {
+	const goroutines = 8
+	const tries = 1000
+	var wg sync.WaitGroup
+	wg.Add(goroutines * 2)
+	timer := NewTimer(Hour)
+	for i := 0; i < goroutines; i++ {
+		go func(i int) {
+			defer wg.Done()
+			for j := 0; j < tries; j++ {
+				timer.Reset(Hour + Duration(i*j))
+			}
+		}(i)
+		go func(i int) {
+			defer wg.Done()
+			timer.Stop()
 		}(i)
 	}
 	wg.Wait()

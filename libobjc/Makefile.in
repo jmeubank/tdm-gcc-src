@@ -1,5 +1,5 @@
 # Makefile for GNU Objective C runtime library.
-# Copyright (C) 1993-2019 Free Software Foundation, Inc.
+# Copyright (C) 1993-2020 Free Software Foundation, Inc.
 
 #This file is part of GCC.
 
@@ -261,21 +261,11 @@ install-info:
 
 LTLDFLAGS = $(shell $(SHELL) $(top_srcdir)/../libtool-ldflags $(LDFLAGS))
 
-MAYBE64 = $(if $(findstring x86_64,$(target_noncanonical)),$(if $(MULTISUBDIR),,_64),$(if $(findstring /64,$(MULTISUBDIR)),_64))
-TARGET_MAYBE64 = $(patsubst %.la,%$(MAYBE64).la,$@)
 libobjc$(libsuffix).la: $(OBJS)
-	$(LIBTOOL_LINK) $(CC) -o $(TARGET_MAYBE64) $(OBJS) \
+	$(LIBTOOL_LINK) $(CC) -o $@ $(OBJS) \
 		-Wc,-shared-libgcc -rpath $(toolexeclibdir) \
 		-version-info $(LIBOBJC_VERSION) $(extra_ldflags_libobjc) \
-		$(LTLDFLAGS) \
-	&& rm -f "$@" \
-	&& cat ".libs/$(TARGET_MAYBE64)" | sed 's/\(.*\)_64\(\.dll\)\?\.a/\1\2\.a/' >"$@" \
-	&& cp -p "$@" ".libs/$@" \
-	&& cp -p "$@" ".libs/$@i" \
-	&& mv -f "$(patsubst %.la,%.dll.a,.libs/$(TARGET_MAYBE64))" tmp \
-	&& mv -f tmp "$(patsubst %.la,%.dll.a,.libs/$@)" \
-	&& mv -f "$(patsubst %.la,%.a,.libs/$(TARGET_MAYBE64))" tmp \
-	&& mv -f tmp "$(patsubst %.la,%.a,.libs/$@)"
+		$(LTLDFLAGS)
 
 libobjc_gc$(libsuffix).la: $(OBJS_GC)
 	$(LIBTOOL_LINK) $(CC) -o $@ $(OBJS_GC) $(OBJC_BOEHM_GC_LIBS) \
@@ -303,11 +293,12 @@ aclocal_deps = \
 	$(srcdir)/../config/multi.m4 \
 	$(srcdir)/../config/override.m4 \
 	$(srcdir)/../config/proginstall.m4 \
+	$(srcdir)/../config/toolexeclibdir.m4 \
 	$(srcdir)/../ltoptions.m4 \
 	$(srcdir)/../ltsugar.m4 \
 	$(srcdir)/../ltversion.m4 \
 	$(srcdir)/../lt~obsolete.m4 \
-	$(srcdir)/../cet.m4 \
+	$(srcdir)/../config/cet.m4 \
 	$(srcdir)/acinclude.m4
 
 $(srcdir)/configure: @MAINT@ configure.ac $(srcdir)/aclocal.m4
@@ -317,16 +308,14 @@ $(srcdir)/configure: @MAINT@ configure.ac $(srcdir)/aclocal.m4
 $(srcdir)/aclocal.m4: @MAINT@ $(aclocal_deps)
 	cd $(srcdir) && $(ACLOCAL) $(ACLOCAL_AMFLAGS)
 
-install-strip: INSTALL_STRIP_FLAG = -s
-install install-strip: install-libs install-headers
+install: install-libs install-headers
 
 install-libs: installdirs
 	$(SHELL) $(multi_basedir)/mkinstalldirs $(DESTDIR)$(toolexeclibdir)
-	$(LIBTOOL_INSTALL) $(INSTALL) $(INSTALL_STRIP_FLAG) \
-	  libobjc$(libsuffix).la $(DESTDIR)$(toolexeclibdir);
+	$(LIBTOOL_INSTALL) $(INSTALL) libobjc$(libsuffix).la $(DESTDIR)$(toolexeclibdir);
 	if [ "$(OBJC_BOEHM_GC)" ]; then \
-	  $(LIBTOOL_INSTALL) $(INSTALL) $(INSTALL_STRIP_FLAG) \
-	    libobjc_gc$(libsuffix).la $(DESTDIR)$(toolexeclibdir);\
+	  $(LIBTOOL_INSTALL) $(INSTALL) libobjc_gc$(libsuffix).la \
+				$(DESTDIR)$(toolexeclibdir);\
 	fi
 	$(MULTIDO) $(FLAGS_TO_PASS) multi-do DO="$@"
 	@-$(LIBTOOL) --mode=finish $(DESTDIR)$(toolexeclibdir)
@@ -339,7 +328,7 @@ install-headers:
 	  $(INSTALL_DATA) $${realfile} $(DESTDIR)$(libsubdir)/$(includedirname)/objc; \
 	done
 
-check uninstall dist installcheck installdirs:
+check uninstall install-strip dist installcheck installdirs:
 
 mostlyclean:
 	-$(LIBTOOL_CLEAN) rm -f libobjc$(libsuffix).la libobjc_gc$(libsuffix).la *.lo

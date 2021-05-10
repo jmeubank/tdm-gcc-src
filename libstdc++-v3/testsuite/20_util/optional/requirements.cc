@@ -1,7 +1,7 @@
 // { dg-options "-std=gnu++17" }
 // { dg-do run { target c++17 }  }
 
-// Copyright (C) 2013-2019 Free Software Foundation, Inc.
+// Copyright (C) 2013-2020 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -312,7 +312,10 @@ struct JustEq {};
 bool operator==(const JustEq&, const JustEq&);
 
 static_assert(is_eq_comparable<optional<JustEq>>::value, "");
+#if __cplusplus == 201703L
+// In C++20 operator!= can be synthesized from operator==
 static_assert(!is_neq_comparable<optional<JustEq>>::value, "");
+#endif
 static_assert(!is_lt_comparable<optional<JustEq>>::value, "");
 static_assert(!is_gt_comparable<optional<JustEq>>::value, "");
 static_assert(!is_le_comparable<optional<JustEq>>::value, "");

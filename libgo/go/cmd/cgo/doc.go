@@ -55,7 +55,7 @@ For example:
 
 The default pkg-config tool may be changed by setting the PKG_CONFIG environment variable.
 
-For security reasons, only a limited set of flags are allowed, notably -D, -I, and -l.
+For security reasons, only a limited set of flags are allowed, notably -D, -U, -I, and -l.
 To allow additional flags, set CGO_CFLAGS_ALLOW to a regular expression
 matching the new flags. To disallow flags that would otherwise be allowed,
 set CGO_CFLAGS_DISALLOW to a regular expression matching arguments
@@ -99,7 +99,7 @@ Will be expanded to:
 
 When the Go tool sees that one or more Go files use the special import
 "C", it will look for other non-Go files in the directory and compile
-them as part of the Go package. Any .c, .s, or .S files will be
+them as part of the Go package. Any .c, .s, .S or .sx files will be
 compiled with the C compiler. Any .cc, .cpp, or .cxx files will be
 compiled with the C++ compiler. Any .f, .F, .for or .f90 files will be
 compiled with the fortran compiler. Any .h, .hh, .hpp, or .hxx files will
@@ -296,7 +296,7 @@ Go functions can be exported for use by C code in the following way:
 
 They will be available in the C code as:
 
-	extern int64 MyFunction(int arg1, int arg2, GoString arg3);
+	extern GoInt64 MyFunction(int arg1, int arg2, GoString arg3);
 	extern struct MyFunction2_return MyFunction2(int arg1, int arg2, GoString arg3);
 
 found in the _cgo_export.h generated header, after any preambles
@@ -710,7 +710,7 @@ _cgo_main.c:
 
 	int main() { return 0; }
 	void crosscall2(void(*fn)(void*, int, uintptr_t), void *a, int c, uintptr_t ctxt) { }
-	uintptr_t _cgo_wait_runtime_init_done() { return 0; }
+	uintptr_t _cgo_wait_runtime_init_done(void) { return 0; }
 	void _cgo_release_context(uintptr_t ctxt) { }
 	char* _cgo_topofstack(void) { return (char*)0; }
 	void _cgo_allocate(void *a, int c) { }

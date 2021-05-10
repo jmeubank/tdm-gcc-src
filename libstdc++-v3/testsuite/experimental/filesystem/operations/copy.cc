@@ -2,7 +2,7 @@
 // { dg-do run { target c++11 } }
 // { dg-require-filesystem-ts "" }
 
-// Copyright (C) 2014-2019 Free Software Foundation, Inc.
+// Copyright (C) 2014-2020 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -57,7 +57,7 @@ test01()
   VERIFY( !exists(to) );
 
   ec.clear();
-  opts != fs::copy_options::recursive;
+  opts |= fs::copy_options::recursive;
   fs::copy("/", to, opts, ec);
   VERIFY( ec == std::make_error_code(std::errc::is_a_directory) );
   VERIFY( !exists(to) );

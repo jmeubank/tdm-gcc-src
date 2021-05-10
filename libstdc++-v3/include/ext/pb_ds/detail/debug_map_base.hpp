@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005-2019 Free Software Foundation, Inc.
+// Copyright (C) 2005-2020 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -57,9 +57,9 @@ namespace __gnu_pbds
     // Need std::pair ostream extractor.
     template<typename _CharT, typename _Traits, typename _Tp1, typename _Tp2>
     inline std::basic_ostream<_CharT, _Traits>&
-    operator<<(std::basic_ostream<_CharT, _Traits>& ___out,
+    operator<<(std::basic_ostream<_CharT, _Traits>& __out,
 	       const std::pair<_Tp1, _Tp2>& p)
-    { return (___out << '(' << p.first << ',' << p.second << ')'); }
+    { return (__out << '(' << p.first << ',' << p.second << ')'); }
 
 #define PB_DS_CLASS_T_DEC \
     template<typename Key, typename Eq_Fn, typename Const_Key_Reference>

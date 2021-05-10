@@ -1200,6 +1200,83 @@ else version (NetBSD)
     extern (D) bool S_ISLNK( mode_t mode )  { return S_ISTYPE( mode, S_IFLNK );  }
     extern (D) bool S_ISSOCK( mode_t mode ) { return S_ISTYPE( mode, S_IFSOCK ); }
 }
+else version (OpenBSD)
+{
+    import core.sys.openbsd.sys.cdefs;
+
+    struct stat_t
+    {
+        mode_t    st_mode;
+        dev_t     st_dev;
+        ino_t     st_ino;
+        nlink_t   st_nlink;
+        uid_t     st_uid;
+        gid_t     st_gid;
+        dev_t     st_rdev;
+      static if (__POSIX_VISIBLE >= 200809 || __BSD_VISIBLE)
+      {
+        timespec  st_atim;
+        timespec  st_mtim;
+        timespec  st_ctim;
+        extern(D)
+        {
+            @property ref time_t st_atime() { return st_atim.tv_sec; }
+            @property ref time_t st_mtime() { return st_mtim.tv_sec; }
+            @property ref time_t st_ctime() { return st_ctim.tv_sec; }
+        }
+      }
+      else
+      {
+        time_t    st_atime;
+        long      st_atimensec;
+        time_t    st_mtime;
+        long      st_mtimensec;
+        time_t    st_ctime;
+        long      st_ctimensec;
+      }
+        off_t     st_size;
+        blkcnt_t  st_blocks;
+        blksize_t st_blksize;
+        uint32_t  st_flags;
+        uint32_t  st_gen;
+      static if (__POSIX_VISIBLE >= 200809 || __BSD_VISIBLE)
+      {
+        timespec __st_birthtim;
+      }
+      else
+      {
+        time_t  __st_birthtime;
+        long    __st_birthtimensec;
+      }
+    }
+
+    enum S_IRUSR    = 0x100; // octal 0000400
+    enum S_IWUSR    = 0x080; // octal 0000200
+    enum S_IXUSR    = 0x040; // octal 0000100
+    enum S_IRWXU    = 0x1C0; // octal 0000700
+
+    enum S_IRGRP    = 0x020;  // octal 0000040
+    enum S_IWGRP    = 0x010;  // octal 0000020
+    enum S_IXGRP    = 0x008;  // octal 0000010
+    enum S_IRWXG    = 0x038;  // octal 0000070
+
+    enum S_IROTH    = 0x4; // 0000004
+    enum S_IWOTH    = 0x2; // 0000002
+    enum S_IXOTH    = 0x1; // 0000001
+    enum S_IRWXO    = 0x7; // 0000007
+
+    enum S_ISUID    = 0x800; // octal 0004000
+    enum S_ISGID    = 0x400; // octal 0002000
+    enum S_ISVTX    = 0x200; // octal 0001000
+
+    extern (D) bool S_ISBLK(mode_t mode)  { return (mode & S_IFMT) == S_IFBLK;  }
+    extern (D) bool S_ISCHR(mode_t mode)  { return (mode & S_IFMT) == S_IFCHR;  }
+    extern (D) bool S_ISDIR(mode_t mode)  { return (mode & S_IFMT) == S_IFDIR;  }
+    extern (D) bool S_ISFIFO(mode_t mode) { return (mode & S_IFMT) == S_IFIFO;  }
+    extern (D) bool S_ISREG(mode_t mode)  { return (mode & S_IFMT) == S_IFREG;  }
+    extern (D) bool S_ISLNK(mode_t mode)  { return (mode & S_IFMT) == S_IFLNK;  }
+    extern (D) bool S_ISSOCK(mode_t mode) { return (mode & S_IFMT) == S_IFSOCK; }
+}
 else version (DragonFlyBSD)
 {
     struct stat_t {
@@ -1348,7 +1425,6 @@ else version (Solaris)
             dev_t st_rdev;
             c_long[2] st_pad2;
             off64_t st_size;
-            c_long st_pad3;
             union
             {
                 timestruc_t st_atim;
@@ -1587,31 +1663,225 @@ else version (CRuntime_Musl)
         S_ISGID    = 0x400, // octal 02000
         S_ISVTX    = 0x200, // octal 01000
     }
-    struct stat_t {
-        dev_t st_dev;
-        ino_t st_ino;
-        nlink_t st_nlink;
-
-        mode_t st_mode;
-        uid_t st_uid;
-        gid_t st_gid;
-        uint    __pad0;
-        dev_t st_rdev;
-        off_t st_size;
-        blksize_t st_blksize;
-        blkcnt_t st_blocks;
-
-        timespec st_atim;
-        timespec st_mtim;
-        timespec st_ctim;
-        extern(D) @safe @property inout pure nothrow
+    version (ARM)
+    {
+        struct stat_t
         {
-            ref inout(time_t) st_atime() return { return st_atim.tv_sec; }
-            ref inout(time_t) st_mtime() return { return st_mtim.tv_sec; }
-            ref inout(time_t) st_ctime() return { return st_ctim.tv_sec; }
+            dev_t st_dev;
+            int __st_dev_padding;
+            c_long __st_ino_truncated;
+            mode_t st_mode;
+            nlink_t st_nlink;
+
+            uid_t st_uid;
+            gid_t st_gid;
+            dev_t st_rdev;
+            int __st_rdev_padding;
+            off_t st_size;
+            blksize_t st_blksize;
+            blkcnt_t st_blocks;
+
+            timespec st_atim;
+            timespec st_mtim;
+            timespec st_ctim;
+            ino_t st_ino;
+
+            extern(D) @safe @property inout pure nothrow
+            {
+                ref inout(time_t) st_atime() return { return st_atim.tv_sec; }
+                ref inout(time_t) st_mtime() return { return st_mtim.tv_sec; }
+                ref inout(time_t) st_ctime() return { return st_ctim.tv_sec; }
+            }
         }
-        long[3] __unused;
     }
+    else version (AArch64)
+    {
+        struct stat_t
+        {
+            dev_t st_dev;
+            ino_t st_ino;
+            mode_t st_mode;
+            nlink_t st_nlink;
+
+            uid_t st_uid;
+            gid_t st_gid;
+            dev_t st_rdev;
+            c_ulong __pad;
+            off_t st_size;
+            blksize_t st_blksize;
+            int __pad2;
+            blkcnt_t st_blocks;
+
+            timespec st_atim;
+            timespec st_mtim;
+            timespec st_ctim;
+            uint[2] __unused;
+
+            extern(D) @safe @property inout pure nothrow
+            {
+                ref inout(time_t) st_atime() return { return st_atim.tv_sec; }
+                ref inout(time_t) st_mtime() return { return st_mtim.tv_sec; }
+                ref inout(time_t) st_ctime() return { return st_ctim.tv_sec; }
+            }
+        }
+    }
+    else version (X86_64)
+    {
+        struct stat_t
+        {
+            dev_t st_dev;
+            ino_t st_ino;
+            nlink_t st_nlink;
+
+            mode_t st_mode;
+            uid_t st_uid;
+            gid_t st_gid;
+            uint   __pad0;
+            dev_t st_rdev;
+            off_t st_size;
+            blksize_t st_blksize;
+            blkcnt_t st_blocks;
+
+            timespec st_atim;
+            timespec st_mtim;
+            timespec st_ctim;
+
+            c_long[3] __unused;
+
+            extern(D) @safe @property inout pure nothrow
+            {
+                ref inout(time_t) st_atime() return { return st_atim.tv_sec; }
+                ref inout(time_t) st_mtime() return { return st_mtim.tv_sec; }
+                ref inout(time_t) st_ctime() return { return st_ctim.tv_sec; }
+            }
+        }
+    }
+    else version (X86)
+    {
+        struct stat_t
+        {
+            dev_t st_dev;
+            int __st_dev_padding;
+            c_long __st_ino_truncated;
+            mode_t st_mode;
+            nlink_t st_nlink;
+
+            uid_t st_uid;
+            gid_t st_gid;
+            dev_t st_rdev;
+            int __st_rdev_padding;
+            off_t st_size;
+            blksize_t st_blksize;
+            blkcnt_t st_blocks;
+
+            timespec st_atim;
+            timespec st_mtim;
+            timespec st_ctim;
+            ino_t st_ino;
+
+            extern(D) @safe @property inout pure nothrow
+            {
+                ref inout(time_t) st_atime() return { return st_atim.tv_sec; }
+                ref inout(time_t) st_mtime() return { return st_mtim.tv_sec; }
+                ref inout(time_t) st_ctime() return { return st_ctim.tv_sec; }
+            }
+        }
+    }
+    else version (MIPS64)
+    {
+        struct stat_t
+        {
+            dev_t st_dev;
+            int[3] __pad1;
+            ino_t st_ino;
+            mode_t st_mode;
+            nlink_t st_nlink;
+
+            uid_t st_uid;
+            gid_t st_gid;
+            dev_t st_rdev;
+            uint[2] __pad2;
+            off_t st_size;
+            int __pad3;
+
+            timespec st_atim;
+            timespec st_mtim;
+            timespec st_ctim;
+            blksize_t st_blksize;
+            uint __pad4;
+            blkcnt_t st_blocks;
+            int[14] __pad5;
+
+            extern(D) @safe @property inout pure nothrow
+            {
+                ref inout(time_t) st_atime() return { return st_atim.tv_sec; }
+                ref inout(time_t) st_mtime() return { return st_mtim.tv_sec; }
+                ref inout(time_t) st_ctime() return { return st_ctim.tv_sec; }
+            }
+        }
+    }
+    else version (PPC64)
+    {
+        struct stat_t
+        {
+            dev_t st_dev;
+            ino_t st_ino;
+            nlink_t st_nlink;
+            mode_t st_mode;
+
+            uid_t st_uid;
+            gid_t st_gid;
+            dev_t st_rdev;
+            off_t st_size;
+            blksize_t st_blksize;
+            blkcnt_t st_blocks;
+
+            timespec st_atim;
+            timespec st_mtim;
+            timespec st_ctim;
+            c_ulong[3] __unused;
+
+            extern(D) @safe @property inout pure nothrow
+            {
+                ref inout(time_t) st_atime() return { return st_atim.tv_sec; }
+                ref inout(time_t) st_mtime() return { return st_mtim.tv_sec; }
+                ref inout(time_t) st_ctime() return { return st_ctim.tv_sec; }
+            }
+        }
+    }
+    else version (SystemZ)
+    {
+        struct stat_t
+        {
+            dev_t st_dev;
+            ino_t st_ino;
+            nlink_t st_nlink;
+            mode_t st_mode;
+
+            uid_t st_uid;
+            gid_t st_gid;
+            dev_t st_rdev;
+            off_t st_size;
+
+            timespec st_atim;
+            timespec st_mtim;
+            timespec st_ctim;
+
+            blksize_t st_blksize;
+            blkcnt_t st_blocks;
+            c_ulong[3] __unused;
+
+            extern(D) @safe @property inout pure nothrow
+            {
+                ref inout(time_t) st_atime() return { return st_atim.tv_sec; }
+                ref inout(time_t) st_mtime() return { return st_mtim.tv_sec; }
+                ref inout(time_t) st_ctime() return { return st_ctim.tv_sec; }
+            }
+        }
+    }
+    else
+        static assert("Unsupported platform");
+
     private
     {
         extern (D) bool S_ISTYPE( mode_t mode, uint mask )
@@ -1948,6 +2218,12 @@ else version (NetBSD)
     alias __lstat50 lstat;
     alias __stat50 stat;
 }
+else version (OpenBSD)
+{
+    int   fstat(int, stat_t*);
+    int   lstat(in char*, stat_t*);
+    int   stat(in char*, stat_t*);
+}
 else version (DragonFlyBSD)
 {
     int   fstat(int, stat_t*);
@@ -2054,6 +2330,19 @@ else version (FreeBSD)
     int mknod(in char*, mode_t, dev_t);
 }
 else version (NetBSD)
+{
+    enum S_IFMT     = 0xF000; // octal 0170000
+    enum S_IFBLK    = 0x6000; // octal 0060000
+    enum S_IFCHR    = 0x2000; // octal 0020000
+    enum S_IFIFO    = 0x1000; // octal 0010000
+    enum S_IFREG    = 0x8000; // octal 0100000
+    enum S_IFDIR    = 0x4000; // octal 0040000
+    enum S_IFLNK    = 0xA000; // octal 0120000
+    enum S_IFSOCK   = 0xC000; // octal 0140000
+
+    int mknod(in char*, mode_t, dev_t);
+}
+else version (OpenBSD)
 {
     enum S_IFMT     = 0xF000; // octal 0170000
     enum S_IFBLK    = 0x6000; // octal 0060000

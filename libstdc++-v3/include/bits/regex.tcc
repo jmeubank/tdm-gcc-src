@@ -1,6 +1,6 @@
 // class template regex -*- C++ -*-
 
-// Copyright (C) 2013-2019 Free Software Foundation, Inc.
+// Copyright (C) 2013-2020 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -34,6 +34,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 namespace __detail
 {
+  /// @cond undocumented
+
   // Result of merging regex_match and regex_search.
   //
   // __policy now can be _S_auto (auto dispatch) and _S_alternate (use
@@ -57,8 +59,6 @@ namespace __detail
       typename match_results<_BiIter, _Alloc>::_Base_type& __res = __m;
       __m._M_begin = __s;
       __m._M_resize(__re._M_automaton->_M_sub_count());
-      for (auto& __it : __res)
-	__it.matched = false;
 
       bool __ret;
       if ((__re.flags() & regex_constants::__polynomial)
@@ -109,16 +109,14 @@ namespace __detail
 	}
       else
 	{
-	  __m._M_resize(0);
-	  for (auto& __it : __res)
-	    {
-	      __it.matched = false;
-	      __it.first = __it.second = __e;
-	    }
+	  __m._M_establish_failed_match(__e);
 	}
       return __ret;
     }
-}
+  /// @endcond
+} // namespace __detail
+
+  /// @cond
 
   template<typename _Ch_type>
   template<typename _Fwd_iter>
@@ -352,8 +350,9 @@ namespace __detail
 
   template<typename _Bi_iter, typename _Alloc>
   template<typename _Out_iter>
-    _Out_iter match_results<_Bi_iter, _Alloc>::
-    format(_Out_iter ___out,
+    _Out_iter
+    match_results<_Bi_iter, _Alloc>::
+    format(_Out_iter __out,
 	   const match_results<_Bi_iter, _Alloc>::char_type* __fmt_first,
 	   const match_results<_Bi_iter, _Alloc>::char_type* __fmt_last,
 	   match_flag_type __flags) const
@@ -368,7 +367,7 @@ namespace __detail
 	{
 	  auto& __sub = (*this)[__idx];
 	  if (__sub.matched)
-	    ___out = std::copy(__sub.first, __sub.second, ___out);
+	    __out = std::copy(__sub.first, __sub.second, __out);
 	};
 
       if (__flags & regex_constants::format_sed)
@@ -382,7 +381,7 @@ namespace __detail
 		  if (__fctyp.is(__ctype_type::digit, *__fmt_first))
 		    __output(__traits.value(*__fmt_first, 10));
 		  else
-		    *___out++ = *__fmt_first;
+		    *__out++ = *__fmt_first;
 		  continue;
 		}
 	      if (*__fmt_first == '\\')
@@ -395,10 +394,10 @@ namespace __detail
 		  __output(0);
 		  continue;
 		}
-	      *___out++ = *__fmt_first;
+	      *__out++ = *__fmt_first;
 	    }
 	  if (__escaping)
-	    *___out++ = '\\';
+	    *__out++ = '\\';
 	}
       else
 	{
@@ -408,7 +407,7 @@ namespace __detail
 	      if (__next == __fmt_last)
 		break;
 
-	      ___out = std::copy(__fmt_first, __next, ___out);
+	      __out = std::copy(__fmt_first, __next, __out);
 
 	      auto __eat = [&](char __ch) -> bool
 		{
@@ -421,22 +420,22 @@ namespace __detail
 		};
 
 	      if (++__next == __fmt_last)
-		*___out++ = '$';
+		*__out++ = '$';
 	      else if (__eat('$'))
-		*___out++ = '$';
+		*__out++ = '$';
 	      else if (__eat('&'))
 		__output(0);
 	      else if (__eat('`'))
 		{
 		  auto& __sub = _M_prefix();
 		  if (__sub.matched)
-		    ___out = std::copy(__sub.first, __sub.second, ___out);
+		    __out = std::copy(__sub.first, __sub.second, __out);
 		}
 	      else if (__eat('\''))
 		{
 		  auto& __sub = _M_suffix();
 		  if (__sub.matched)
-		    ___out = std::copy(__sub.first, __sub.second, ___out);
+		    __out = std::copy(__sub.first, __sub.second, __out);
 		}
 	      else if (__fctyp.is(__ctype_type::digit, *__next))
 		{
@@ -451,18 +450,18 @@ namespace __detail
 		    __output(__num);
 		}
 	      else
-		*___out++ = '$';
+		*__out++ = '$';
 	      __fmt_first = __next;
 	    }
-	  ___out = std::copy(__fmt_first, __fmt_last, ___out);
+	  __out = std::copy(__fmt_first, __fmt_last, __out);
 	}
-      return ___out;
+      return __out;
     }
 
   template<typename _Out_iter, typename _Bi_iter,
 	   typename _Rx_traits, typename _Ch_type>
     _Out_iter
-    regex_replace(_Out_iter ___out, _Bi_iter __first, _Bi_iter __last,
+    regex_replace(_Out_iter __out, _Bi_iter __first, _Bi_iter __last,
 		  const basic_regex<_Ch_type, _Rx_traits>& __e,
 		  const _Ch_type* __fmt,
 		  regex_constants::match_flag_type __flags)
@@ -473,7 +472,7 @@ namespace __detail
       if (__i == __end)
 	{
 	  if (!(__flags & regex_constants::format_no_copy))
-	    ___out = std::copy(__first, __last, ___out);
+	    __out = std::copy(__first, __last, __out);
 	}
       else
 	{
@@ -482,17 +481,17 @@ namespace __detail
 	  for (; __i != __end; ++__i)
 	    {
 	      if (!(__flags & regex_constants::format_no_copy))
-		___out = std::copy(__i->prefix().first, __i->prefix().second,
-				  ___out);
-	      ___out = __i->format(___out, __fmt, __fmt + __len, __flags);
+		__out = std::copy(__i->prefix().first, __i->prefix().second,
+				  __out);
+	      __out = __i->format(__out, __fmt, __fmt + __len, __flags);
 	      __last = __i->suffix();
 	      if (__flags & regex_constants::format_first_only)
 		break;
 	    }
 	  if (!(__flags & regex_constants::format_no_copy))
-	    ___out = std::copy(__last.first, __last.second, ___out);
+	    __out = std::copy(__last.first, __last.second, __out);
 	}
-      return ___out;
+      return __out;
     }
 
   template<typename _Bi_iter,
@@ -666,6 +665,8 @@ namespace __detail
       else
 	_M_result = nullptr;
     }
+
+  /// @endcond
 
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace

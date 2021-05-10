@@ -1,6 +1,6 @@
 // Output streams -*- C++ -*-
 
-// Copyright (C) 1997-2019 Free Software Foundation, Inc.
+// Copyright (C) 1997-2020 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -488,14 +488,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   //@{
   /**
    *  @brief  Character inserters
-   *  @param  ___out  An output stream.
+   *  @param  __out  An output stream.
    *  @param  __c  A character.
    *  @return  out
    *
    *  Behaves like one of the formatted arithmetic inserters described in
    *  std::basic_ostream.  After constructing a sentry object with good
    *  status, this function inserts a single character and any required
-   *  padding (as determined by [22.2.2.2.2]).  @c ___out.width(0) is then
+   *  padding (as determined by [22.2.2.2.2]).  @c __out.width(0) is then
    *  called.
    *
    *  If @p __c is of type @c char and the character type of the stream is not
@@ -503,36 +503,77 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   */
   template<typename _CharT, typename _Traits>
     inline basic_ostream<_CharT, _Traits>&
-    operator<<(basic_ostream<_CharT, _Traits>& ___out, _CharT __c)
-    { return __ostream_insert(___out, &__c, 1); }
+    operator<<(basic_ostream<_CharT, _Traits>& __out, _CharT __c)
+    { return __ostream_insert(__out, &__c, 1); }
 
   template<typename _CharT, typename _Traits>
     inline basic_ostream<_CharT, _Traits>&
-    operator<<(basic_ostream<_CharT, _Traits>& ___out, char __c)
-    { return (___out << ___out.widen(__c)); }
+    operator<<(basic_ostream<_CharT, _Traits>& __out, char __c)
+    { return (__out << __out.widen(__c)); }
 
   // Specialization
-  template <class _Traits>
+  template<typename _Traits>
     inline basic_ostream<char, _Traits>&
-    operator<<(basic_ostream<char, _Traits>& ___out, char __c)
-    { return __ostream_insert(___out, &__c, 1); }
+    operator<<(basic_ostream<char, _Traits>& __out, char __c)
+    { return __ostream_insert(__out, &__c, 1); }
 
   // Signed and unsigned
-  template<class _Traits>
+  template<typename _Traits>
     inline basic_ostream<char, _Traits>&
-    operator<<(basic_ostream<char, _Traits>& ___out, signed char __c)
-    { return (___out << static_cast<char>(__c)); }
+    operator<<(basic_ostream<char, _Traits>& __out, signed char __c)
+    { return (__out << static_cast<char>(__c)); }
 
-  template<class _Traits>
+  template<typename _Traits>
     inline basic_ostream<char, _Traits>&
-    operator<<(basic_ostream<char, _Traits>& ___out, unsigned char __c)
-    { return (___out << static_cast<char>(__c)); }
+    operator<<(basic_ostream<char, _Traits>& __out, unsigned char __c)
+    { return (__out << static_cast<char>(__c)); }
+
+#if __cplusplus > 201703L
+  // The following deleted overloads prevent formatting character values as
+  // numeric values.
+
+#ifdef _GLIBCXX_USE_WCHAR_T
+  template<typename _Traits>
+    basic_ostream<char, _Traits>&
+    operator<<(basic_ostream<char, _Traits>&, wchar_t) = delete;
+#endif // _GLIBCXX_USE_WCHAR_T
+
+#ifdef _GLIBCXX_USE_CHAR8_T
+  template<typename _Traits>
+    basic_ostream<char, _Traits>&
+    operator<<(basic_ostream<char, _Traits>&, char8_t) = delete;
+#endif
+
+  template<typename _Traits>
+    basic_ostream<char, _Traits>&
+    operator<<(basic_ostream<char, _Traits>&, char16_t) = delete;
+
+  template<typename _Traits>
+    basic_ostream<char, _Traits>&
+    operator<<(basic_ostream<char, _Traits>&, char32_t) = delete;
+
+#ifdef _GLIBCXX_USE_WCHAR_T
+#ifdef _GLIBCXX_USE_CHAR8_T
+  template<typename _Traits>
+    basic_ostream<wchar_t, _Traits>&
+    operator<<(basic_ostream<wchar_t, _Traits>&, char8_t) = delete;
+#endif // _GLIBCXX_USE_CHAR8_T
+
+  template<typename _Traits>
+    basic_ostream<wchar_t, _Traits>&
+    operator<<(basic_ostream<wchar_t, _Traits>&, char16_t) = delete;
+
+  template<typename _Traits>
+    basic_ostream<wchar_t, _Traits>&
+    operator<<(basic_ostream<wchar_t, _Traits>&, char32_t) = delete;
+#endif // _GLIBCXX_USE_WCHAR_T
+#endif // C++20
   //@}
 
   //@{
   /**
    *  @brief  String inserters
-   *  @param  ___out  An output stream.
+   *  @param  __out  An output stream.
    *  @param  __s  A character string.
    *  @return  out
    *  @pre  @p __s must be a non-NULL pointer
@@ -541,47 +582,88 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
    *  std::basic_ostream.  After constructing a sentry object with good
    *  status, this function inserts @c traits::length(__s) characters starting
    *  at @p __s, widened if necessary, followed by any required padding (as
-   *  determined by [22.2.2.2.2]).  @c ___out.width(0) is then called.
+   *  determined by [22.2.2.2.2]).  @c __out.width(0) is then called.
   */
   template<typename _CharT, typename _Traits>
     inline basic_ostream<_CharT, _Traits>&
-    operator<<(basic_ostream<_CharT, _Traits>& ___out, const _CharT* __s)
+    operator<<(basic_ostream<_CharT, _Traits>& __out, const _CharT* __s)
     {
       if (!__s)
-	___out.setstate(ios_base::badbit);
+	__out.setstate(ios_base::badbit);
       else
-	__ostream_insert(___out, __s,
+	__ostream_insert(__out, __s,
 			 static_cast<streamsize>(_Traits::length(__s)));
-      return ___out;
+      return __out;
     }
 
   template<typename _CharT, typename _Traits>
     basic_ostream<_CharT, _Traits> &
-    operator<<(basic_ostream<_CharT, _Traits>& ___out, const char* __s);
+    operator<<(basic_ostream<_CharT, _Traits>& __out, const char* __s);
 
   // Partial specializations
-  template<class _Traits>
+  template<typename _Traits>
     inline basic_ostream<char, _Traits>&
-    operator<<(basic_ostream<char, _Traits>& ___out, const char* __s)
+    operator<<(basic_ostream<char, _Traits>& __out, const char* __s)
     {
       if (!__s)
-	___out.setstate(ios_base::badbit);
+	__out.setstate(ios_base::badbit);
       else
-	__ostream_insert(___out, __s,
+	__ostream_insert(__out, __s,
 			 static_cast<streamsize>(_Traits::length(__s)));
-      return ___out;
+      return __out;
     }
 
   // Signed and unsigned
-  template<class _Traits>
+  template<typename _Traits>
     inline basic_ostream<char, _Traits>&
-    operator<<(basic_ostream<char, _Traits>& ___out, const signed char* __s)
-    { return (___out << reinterpret_cast<const char*>(__s)); }
+    operator<<(basic_ostream<char, _Traits>& __out, const signed char* __s)
+    { return (__out << reinterpret_cast<const char*>(__s)); }
 
-  template<class _Traits>
+  template<typename _Traits>
     inline basic_ostream<char, _Traits> &
-    operator<<(basic_ostream<char, _Traits>& ___out, const unsigned char* __s)
-    { return (___out << reinterpret_cast<const char*>(__s)); }
+    operator<<(basic_ostream<char, _Traits>& __out, const unsigned char* __s)
+    { return (__out << reinterpret_cast<const char*>(__s)); }
+
+#if __cplusplus > 201703L
+   // The following deleted overloads prevent formatting strings as
+   // pointer values.
+
+#ifdef _GLIBCXX_USE_WCHAR_T
+  template<typename _Traits>
+    basic_ostream<char, _Traits>&
+    operator<<(basic_ostream<char, _Traits>&, const wchar_t*) = delete;
+#endif // _GLIBCXX_USE_WCHAR_T
+
+#ifdef _GLIBCXX_USE_CHAR8_T
+  template<typename _Traits>
+    basic_ostream<char, _Traits>&
+    operator<<(basic_ostream<char, _Traits>&, const char8_t*) = delete;
+#endif // _GLIBCXX_USE_CHAR8_T
+
+  template<typename _Traits>
+    basic_ostream<char, _Traits>&
+    operator<<(basic_ostream<char, _Traits>&, const char16_t*) = delete;
+
+  template<typename _Traits>
+    basic_ostream<char, _Traits>&
+    operator<<(basic_ostream<char, _Traits>&, const char32_t*) = delete;
+
+#ifdef _GLIBCXX_USE_WCHAR_T
+#ifdef _GLIBCXX_USE_CHAR8_T
+  template<typename _Traits>
+    basic_ostream<wchar_t, _Traits>&
+    operator<<(basic_ostream<wchar_t, _Traits>&, const char8_t*) = delete;
+#endif
+
+  template<typename _Traits>
+    basic_ostream<wchar_t, _Traits>&
+    operator<<(basic_ostream<wchar_t, _Traits>&, const char16_t*) = delete;
+
+  template<typename _Traits>
+    basic_ostream<wchar_t, _Traits>&
+    operator<<(basic_ostream<wchar_t, _Traits>&, const char32_t*) = delete;
+#endif // _GLIBCXX_USE_WCHAR_T
+#endif // C++20
   //@}
 
   // Standard basic_ostream manipulators

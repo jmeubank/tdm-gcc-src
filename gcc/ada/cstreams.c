@@ -53,9 +53,7 @@
 #endif
 
 #ifdef IN_RTS
-#include "tconfig.h"
-#include "tsystem.h"
-#include <sys/stat.h>
+#include <string.h>
 #else
 #include "config.h"
 #include "system.h"
@@ -256,7 +254,7 @@ __gnat_full_name (char *nam, char *buffer)
   return buffer;
 }
 
-#ifdef _WIN64
+#ifdef _WIN32
   /* On Windows we want to use the fseek/fteel supporting large files. This
      issue is due to the fact that a long on Win64 is still a 32 bits value */
 __int64

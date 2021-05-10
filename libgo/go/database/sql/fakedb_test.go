@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"reflect"
 	"sort"
 	"strconv"
@@ -19,8 +18,6 @@ import (
 	"testing"
 	"time"
 )
-
-var _ = log.Printf
 
 // fakeDriver is a fake database that implements Go's driver.Driver
 // interface, just for testing.
@@ -393,10 +390,17 @@ func setStrictFakeConnClose(t *testing.T) {
 
 func (c *fakeConn) ResetSession(ctx context.Context) error {
 	c.dirtySession = false
+	c.currTx = nil
 	if c.isBad() {
 		return driver.ErrBadConn
 	}
 	return nil
+}
+
+var _ validator = (*fakeConn)(nil)
+
+func (c *fakeConn) IsValid() bool {
+	return !c.isBad()
 }
 
 func (c *fakeConn) Close() (err error) {
@@ -731,6 +735,9 @@ var hookExecBadConn func() bool
 func (s *fakeStmt) Exec(args []driver.Value) (driver.Result, error) {
 	panic("Using ExecContext")
 }
+
+var errFakeConnSessionDirty = errors.New("fakedb: session is dirty")
+
 func (s *fakeStmt) ExecContext(ctx context.Context, args []driver.NamedValue) (driver.Result, error) {
 	if s.panic == "Exec" {
 		panic(s.panic)
@@ -743,7 +750,7 @@ func (s *fakeStmt) ExecContext(ctx context.Context, args []driver.NamedValue) (d
 		return nil, driver.ErrBadConn
 	}
 	if s.c.isDirtyAndMark() {
-		return nil, errors.New("fakedb: session is dirty")
+		return nil, errFakeConnSessionDirty
 	}
 
 	err := checkSubsetTypes(s.c.db.allowAny, args)
@@ -857,7 +864,7 @@ func (s *fakeStmt) QueryContext(ctx context.Context, args []driver.NamedValue) (
 		return nil, driver.ErrBadConn
 	}
 	if s.c.isDirtyAndMark() {
-		return nil, errors.New("fakedb: session is dirty")
+		return nil, errFakeConnSessionDirty
 	}
 
 	err := checkSubsetTypes(s.c.db.allowAny, args)
@@ -889,6 +896,37 @@ func (s *fakeStmt) QueryContext(ctx context.Context, args []driver.NamedValue) (
 					time.Sleep(time.Duration(args[1].Value.(int64)) * time.Millisecond)
 				}
 			}
+		}
+		if s.table == "tx_status" && s.colName[0] == "tx_status" {
+			txStatus := "autocommit"
+			if s.c.currTx != nil {
+				txStatus = "transaction"
+			}
+			cursor := &rowsCursor{
+				parentMem: s.c,
+				posRow:    -1,
+				rows: [][]*row{
+					[]*row{
+						{
+							cols: []interface{}{
+								txStatus,
+							},
+						},
+					},
+				},
+				cols: [][]string{
+					[]string{
+						"tx_status",
+					},
+				},
+				colType: [][]string{
+					[]string{
+						"string",
+					},
+				},
+				errPos: -1,
+			}
+			return cursor, nil
 		}
 
 		t.mu.Lock()
@@ -1141,6 +1179,8 @@ func converterForType(typ string) driver.ValueConverter {
 		return driver.Null{Converter: driver.Bool}
 	case "int32":
 		return driver.Int32
+	case "nullint32":
+		return driver.Null{Converter: driver.DefaultParameterConverter}
 	case "string":
 		return driver.NotNull{Converter: fakeDriverString{}}
 	case "nullstring":
@@ -1158,7 +1198,9 @@ func converterForType(typ string) driver.ValueConverter {
 		// TODO(coopernurse): add type-specific converter
 		return driver.Null{Converter: driver.DefaultParameterConverter}
 	case "datetime":
-		return driver.DefaultParameterConverter
+		return driver.NotNull{Converter: driver.DefaultParameterConverter}
+	case "nulldatetime":
+		return driver.Null{Converter: driver.DefaultParameterConverter}
 	case "any":
 		return anyTypeConverter{}
 	}
@@ -1173,6 +1215,8 @@ func colTypeToReflectType(typ string) reflect.Type {
 		return reflect.TypeOf(NullBool{})
 	case "int32":
 		return reflect.TypeOf(int32(0))
+	case "nullint32":
+		return reflect.TypeOf(NullInt32{})
 	case "string":
 		return reflect.TypeOf("")
 	case "nullstring":

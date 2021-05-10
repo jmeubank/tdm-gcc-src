@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2007-2019 Free Software Foundation, Inc.
+// Copyright (C) 2007-2020 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -232,7 +232,7 @@ namespace __gnu_parallel
    *
    * @return End iterator of output sequence.
    */
-  template<template<typename RAI, typename C> class iterator,
+  template<template<typename _RAI, typename _Cp> class iterator,
            typename _RAIterIterator,
            typename _RAIter3,
            typename _DifferenceTp,
@@ -351,7 +351,7 @@ namespace __gnu_parallel
    *
    * @return End iterator of output sequence.
    */
-  template<template<typename RAI, typename C> class iterator,
+  template<template<typename _RAI, typename _Cp> class iterator,
            typename _RAIterIterator,
            typename _RAIter3,
            typename _DifferenceTp,
@@ -641,8 +641,8 @@ namespace __gnu_parallel
   /** @brief Multi-way merging procedure for a high branching factor,
    *         requiring sentinels to exist.
    *
-   * @tparam UnguardedLoserTree _Loser Tree variant to use for the unguarded
-   *   merging.
+   * @tparam _UnguardedLoserTree Loser Tree variant to use for the unguarded
+   *				 merging.
    *
    * @param __seqs_begin Begin iterator of iterator pair input sequence.
    * @param __seqs_end End iterator of iterator pair input sequence.
@@ -653,7 +653,7 @@ namespace __gnu_parallel
    *
    * @return End iterator of output sequence.
    */
-  template<typename UnguardedLoserTree,
+  template<typename _UnguardedLoserTree,
 	   typename _RAIterIterator,
 	   typename _RAIter3,
 	   typename _DifferenceTp,
@@ -687,7 +687,7 @@ namespace __gnu_parallel
 	// non-sentinel elements as we have.
 	++((*__s).second);
 
-      __target_end = multiway_merge_loser_tree_unguarded<UnguardedLoserTree>
+      __target_end = multiway_merge_loser_tree_unguarded<_UnguardedLoserTree>
 	(__seqs_begin, __seqs_end, __target, __sentinel, __length, __comp);
 
 #if _GLIBCXX_PARALLEL_ASSERTIONS
@@ -1372,7 +1372,7 @@ namespace __gnu_parallel
    *     for (int __j = 0; __i < 10; ++__j)
    *       sequences[__i][__j] = __j;
    *
-   *   int ___out[33];
+   *   int __out[33];
    *   std::vector<std::pair<int*> > seqs;
    *   for (int __i = 0; __i < 10; ++__i)
    *     { seqs.push(std::make_pair<int*>(sequences[__i],
@@ -1733,7 +1733,7 @@ namespace __gnu_parallel
    *     for (int __j = 0; __i < 11; ++__j)
    *       sequences[__i][__j] = __j; // __last one is sentinel!
    *
-   *   int ___out[33];
+   *   int __out[33];
    *   std::vector<std::pair<int*> > seqs;
    *   for (int __i = 0; __i < 10; ++__i)
    *     { seqs.push(std::make_pair<int*>(sequences[__i],

@@ -1,6 +1,6 @@
 /* Subroutines used to remove unnecessary doubleword swaps
    for p8 little-endian VSX code.
-   Copyright (C) 1991-2019 Free Software Foundation, Inc.
+   Copyright (C) 1991-2020 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -791,6 +791,11 @@ rtx_is_swappable_p (rtx op, unsigned int *special)
 	  case UNSPEC_REDUC_PLUS:
 	  case UNSPEC_REDUC:
 	    return 1;
+	  case UNSPEC_VPMSUM:
+	    /* vpmsumd is not swappable, but vpmsum[bhw] are.  */
+	    if (GET_MODE (op) == V2DImode)
+	      return 0;
+	    break;
 	  }
       }
 
@@ -1917,7 +1922,7 @@ replace_swapped_load_constant (swap_web_entry *insn_entry, rtx swap_insn)
     XEXP (new_mem, 0) = base_reg;
 
     /* Move the newly created insn ahead of the load insn.  */
-    /* The last insn is the the insn that forced new_mem into a register.  */
+    /* The last insn is the insn that forced new_mem into a register.  */
     rtx_insn *force_insn = get_last_insn ();
     /* Remove this insn from the end of the instruction sequence.  */
     remove_insn (force_insn);

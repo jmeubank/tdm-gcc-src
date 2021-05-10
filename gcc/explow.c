@@ -1,5 +1,5 @@
 /* Subroutines for manipulating rtx's in semantically interesting ways.
-   Copyright (C) 1987-2019 Free Software Foundation, Inc.
+   Copyright (C) 1987-2020 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -38,9 +38,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "dojump.h"
 #include "explow.h"
 #include "expr.h"
+#include "stringpool.h"
 #include "common/common-target.h"
 #include "output.h"
-#include "params.h"
 
 static rtx break_out_memory_refs (rtx);
 static void anti_adjust_stack_and_probe_stack_clash (rtx);
@@ -128,6 +128,9 @@ plus_constant (machine_mode mode, rtx x, poly_int64 c, bool inplace)
 	      cst = gen_lowpart (mode, cst);
 	      gcc_assert (cst);
 	    }
+	  else if (GET_MODE (cst) == VOIDmode
+		   && get_pool_mode (XEXP (x, 0)) != mode)
+	    break;
 	  if (GET_MODE (cst) == VOIDmode || GET_MODE (cst) == mode)
 	    {
 	      tem = plus_constant (mode, cst, c);
@@ -1489,7 +1492,7 @@ allocate_dynamic_stack_space (rtx size, unsigned size_align,
      stack pointer, such as acquiring the space by calling malloc().  */
   if (targetm.have_allocate_stack ())
     {
-      struct expand_operand ops[2];
+      class expand_operand ops[2];
       /* We don't have to check against the predicate for operand 0 since
 	 TARGET is known to be a pseudo of the proper mode, which must
 	 be valid for the operand.  */
@@ -1611,6 +1614,10 @@ set_stack_check_libfunc (const char *libfunc_name)
 {
   gcc_assert (stack_check_libfunc == NULL_RTX);
   stack_check_libfunc = gen_rtx_SYMBOL_REF (Pmode, libfunc_name);
+  tree decl = build_decl (UNKNOWN_LOCATION, FUNCTION_DECL,
+			  get_identifier (libfunc_name), void_type_node);
+  DECL_EXTERNAL (decl) = 1;
+  SET_SYMBOL_REF_DECL (stack_check_libfunc, decl);
 }
 
 /* Emit one stack probe at ADDRESS, an address within the stack.  */
@@ -1620,7 +1627,7 @@ emit_stack_probe (rtx address)
 {
   if (targetm.have_probe_stack_address ())
     {
-      struct expand_operand ops[1];
+      class expand_operand ops[1];
       insn_code icode = targetm.code_for_probe_stack_address;
       create_address_operand (ops, address);
       maybe_legitimize_operands (icode, 0, 1, ops);
@@ -1680,7 +1687,7 @@ probe_stack_range (HOST_WIDE_INT first, rtx size)
   /* Next see if we have an insn to check the stack.  */
   else if (targetm.have_check_stack ())
     {
-      struct expand_operand ops[1];
+      class expand_operand ops[1];
       rtx addr = memory_address (Pmode,
 				 gen_rtx_fmt_ee (STACK_GROW_OP, Pmode,
 					         stack_pointer_rtx,
@@ -1832,7 +1839,7 @@ compute_stack_clash_protection_loop_data (rtx *rounded_size, rtx *last_addr,
 {
   /* Round SIZE down to STACK_CLASH_PROTECTION_PROBE_INTERVAL */
   *probe_interval
-    = 1 << PARAM_VALUE (PARAM_STACK_CLASH_PROTECTION_PROBE_INTERVAL);
+    = 1 << param_stack_clash_protection_probe_interval;
   *rounded_size = simplify_gen_binary (AND, Pmode, size,
 				        GEN_INT (-*probe_interval));
 

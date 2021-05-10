@@ -20,10 +20,8 @@ var (
 )
 
 const (
-	darwin64Bit    = runtime.GOOS == "darwin" && sizeofPtr == 8
-	dragonfly64Bit = runtime.GOOS == "dragonfly" && sizeofPtr == 8
-	netbsd32Bit    = runtime.GOOS == "netbsd" && sizeofPtr == 4
-	solaris64Bit   = runtime.GOOS == "solaris" && sizeofPtr == 8
+	darwin64Bit = runtime.GOOS == "darwin" && sizeofPtr == 8
+	netbsd32Bit = runtime.GOOS == "netbsd" && sizeofPtr == 4
 )
 
 // clen returns the index of the first NULL byte in n or len(n) if n contains no NULL byte.
@@ -167,7 +165,14 @@ func Write(fd int, p []byte) (n int, err error) {
 	if race.Enabled {
 		race.ReleaseMerge(unsafe.Pointer(&ioSync))
 	}
-	n, err = write(fd, p)
+	if faketime && (fd == 1 || fd == 2) {
+		n = faketimeWrite(fd, p)
+		if n < 0 {
+			n, err = 0, errnoErr(Errno(-n))
+		}
+	} else {
+		n, err = write(fd, p)
+	}
 	if race.Enabled && n > 0 {
 		race.ReadRange(unsafe.Pointer(&p[0]), n)
 	}

@@ -1,5 +1,5 @@
 /* Specific flags and argument handling of the C++ front end.
-   Copyright (C) 1996-2019 Free Software Foundation, Inc.
+   Copyright (C) 1996-2020 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -68,8 +68,8 @@ lang_specific_driver (struct cl_decoded_option **in_decoded_options,
   /* What do with libstdc++:
      -1 means we should not link in libstdc++
      0  means we should link in libstdc++ if it is needed
-     1  means libstdc++ is needed and should be linked in (statically).
-     2  means libstdc++ is needed and should be linked shared.  */
+     1  means libstdc++ is needed and should be linked in.
+     2  means libstdc++ is needed and should be linked statically.  */
   int library = 0;
 
   /* The number of arguments being added to what's in argv, other than
@@ -108,7 +108,7 @@ lang_specific_driver (struct cl_decoded_option **in_decoded_options,
   int static_link = 0;
 
   /* True if we should add -shared-libgcc to the command-line.  */
-  int shared_libgcc = 0;
+  int shared_libgcc = 1;
 
   /* The total number of arguments with the new stuff.  */
   unsigned int argc;
@@ -204,11 +204,6 @@ lang_specific_driver (struct cl_decoded_option **in_decoded_options,
 	  break;
 
 	case OPT_static_libstdc__:
-	  library = library >= 0 ? 1 : library;
-	  args[i] |= SKIPOPT;
-	  break;
-
-	case OPT_shared_libstdc__:
 	  library = library >= 0 ? 2 : library;
 	  args[i] |= SKIPOPT;
 	  break;
@@ -341,7 +336,7 @@ lang_specific_driver (struct cl_decoded_option **in_decoded_options,
   if (library > 0)
     {
 #ifdef HAVE_LD_STATIC_DYNAMIC
-      if (library == 1 && !static_link)
+      if (library > 1 && !static_link)
 	{
 	  generate_option (OPT_Wl_, LD_STATIC_OPTION, 1, CL_DRIVER,
 			   &new_decoded_options[j]);
@@ -354,7 +349,7 @@ lang_specific_driver (struct cl_decoded_option **in_decoded_options,
       added_libraries++;
       j++;
       /* Add target-dependent static library, if necessary.  */
-      if ((static_link || library == 1) && LIBSTDCXX_STATIC != NULL)
+      if ((static_link || library > 1) && LIBSTDCXX_STATIC != NULL)
 	{
 	  generate_option (OPT_l, LIBSTDCXX_STATIC, 1,
 			   CL_DRIVER, &new_decoded_options[j]);
@@ -362,7 +357,7 @@ lang_specific_driver (struct cl_decoded_option **in_decoded_options,
 	  j++;
 	}
 #ifdef HAVE_LD_STATIC_DYNAMIC
-      if (library == 1 && !static_link)
+      if (library > 1 && !static_link)
 	{
 	  generate_option (OPT_Wl_, LD_DYNAMIC_OPTION, 1, CL_DRIVER,
 			   &new_decoded_options[j]);

@@ -314,6 +314,9 @@ const (
 
 // A FlagSet represents a set of defined flags. The zero value of a FlagSet
 // has no name and has ContinueOnError error handling.
+//
+// Flag names must be unique within a FlagSet. An attempt to define a flag whose
+// name is already in use will cause a panic.
 type FlagSet struct {
 	// Usage is the function called when an error occurs while parsing flags.
 	// The field is a function (not a method) that may be changed to point to
@@ -341,17 +344,15 @@ type Flag struct {
 
 // sortFlags returns the flags as a slice in lexicographical sorted order.
 func sortFlags(flags map[string]*Flag) []*Flag {
-	list := make(sort.StringSlice, len(flags))
+	result := make([]*Flag, len(flags))
 	i := 0
 	for _, f := range flags {
-		list[i] = f.Name
+		result[i] = f
 		i++
 	}
-	list.Sort()
-	result := make([]*Flag, len(list))
-	for i, name := range list {
-		result[i] = flags[name]
-	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Name < result[j].Name
+	})
 	return result
 }
 

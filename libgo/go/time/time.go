@@ -257,7 +257,7 @@ func (t Time) Before(u Time) bool {
 
 // Equal reports whether t and u represent the same time instant.
 // Two times can be equal even if they are in different locations.
-// For example, 6:00 +0200 CEST and 4:00 UTC are Equal.
+// For example, 6:00 +0200 and 4:00 UTC are Equal.
 // See the documentation on the Time type for the pitfalls of using == with
 // Time values; most code should use Equal instead.
 func (t Time) Equal(u Time) bool {
@@ -783,6 +783,12 @@ func fmtInt(buf []byte, v uint64) int {
 // Nanoseconds returns the duration as an integer nanosecond count.
 func (d Duration) Nanoseconds() int64 { return int64(d) }
 
+// Microseconds returns the duration as an integer microsecond count.
+func (d Duration) Microseconds() int64 { return int64(d) / 1e3 }
+
+// Milliseconds returns the duration as an integer millisecond count.
+func (d Duration) Milliseconds() int64 { return int64(d) / 1e6 }
+
 // These methods return float64 because the dominant
 // use case is for printing a floating point number like 1.5s, and
 // a truncation to integer would make them not useful in those cases.
@@ -917,7 +923,7 @@ func (t Time) Sub(u Time) Duration {
 func Since(t Time) Duration {
 	var now Time
 	if t.wall&hasMonotonic != 0 {
-		// Common case optimization: if t has monotomic time, then Sub will use only it.
+		// Common case optimization: if t has monotonic time, then Sub will use only it.
 		now = Time{hasMonotonic, runtimeNano() - startNano, nil}
 	} else {
 		now = Now()
@@ -930,7 +936,7 @@ func Since(t Time) Duration {
 func Until(t Time) Duration {
 	var now Time
 	if t.wall&hasMonotonic != 0 {
-		// Common case optimization: if t has monotomic time, then Sub will use only it.
+		// Common case optimization: if t has monotonic time, then Sub will use only it.
 		now = Time{hasMonotonic, runtimeNano() - startNano, nil}
 	} else {
 		now = Now()
@@ -1142,6 +1148,9 @@ func (t Time) Zone() (name string, offset int) {
 // Unix returns t as a Unix time, the number of seconds elapsed
 // since January 1, 1970 UTC. The result does not depend on the
 // location associated with t.
+// Unix-like operating systems often record time as a 32-bit
+// count of seconds, but since the method here returns a 64-bit
+// value it is valid for billions of years into the past or future.
 func (t Time) Unix() int64 {
 	return t.unixSec()
 }

@@ -1,6 +1,6 @@
 // Filesystem TS operations -*- C++ -*-
 
-// Copyright (C) 2014-2019 Free Software Foundation, Inc.
+// Copyright (C) 2014-2020 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -28,6 +28,7 @@
 # define NEED_DO_SPACE
 #endif
 
+#include <bits/largefile-config.h>
 #include <experimental/filesystem>
 #include <functional>
 #include <ostream>
@@ -183,7 +184,7 @@ fs::canonical(const path& p, const path& base, error_code& ec)
 	      if (!ec)
 		{
 		  if (--max_allowed_symlinks == 0)
-		    ec = make_error_code(std::errc::too_many_symbolic_link_levels);
+		    ec.assign(ELOOP, std::generic_category());
 		  else
 		    {
 		      if (link.is_absolute())
@@ -589,7 +590,7 @@ fs::create_hard_link(const path& to, const path& new_hard_link,
   if (CreateHardLinkW(new_hard_link.c_str(), to.c_str(), NULL))
     ec.clear();
   else
-    ec.assign((int)GetLastError(), generic_category());
+    ec.assign((int)GetLastError(), system_category());
 #else
   ec = std::make_error_code(std::errc::not_supported);
 #endif
@@ -806,7 +807,7 @@ fs::file_size(const path& p, error_code& ec) noexcept
     S(const stat_type& st) : type(make_file_type(st)), size(st.st_size) { }
     S() : type(file_type::not_found) { }
     file_type type;
-    size_t size;
+    uintmax_t size;
   };
   auto s = do_stat(p, ec, [](const auto& st) { return S{st}; }, S{});
   if (s.type == file_type::regular)
@@ -966,7 +967,7 @@ fs::permissions(const path& p, perms prms, error_code& ec) noexcept
     err = errno;
 #else
   if (nofollow && is_symlink(st))
-    ec = std::make_error_code(std::errc::not_supported);
+    ec = std::make_error_code(std::errc::operation_not_supported);
   else if (posix::chmod(p.c_str(), static_cast<mode_t>(prms)))
     err = errno;
 #endif
@@ -992,11 +993,17 @@ fs::path fs::read_symlink(const path& p [[gnu::unused]], error_code& ec)
   path result;
 #if defined(_GLIBCXX_HAVE_READLINK) && defined(_GLIBCXX_HAVE_SYS_STAT_H)
   stat_type st;
-  if (::lstat(p.c_str(), &st))
+  if (posix::lstat(p.c_str(), &st))
     {
       ec.assign(errno, std::generic_category());
       return result;
     }
+  else if (!fs::is_symlink(make_file_status(st)))
+    {
+      ec.assign(EINVAL, std::generic_category());
+      return result;
+    }
+
   std::string buf(st.st_size ? st.st_size + 1 : 128, '\0');
   do
     {
@@ -1055,7 +1062,7 @@ fs::remove(const path& p, error_code& ec) noexcept
 	  return true;
 	}
       else if (!ec)
-	ec.assign((int)GetLastError(), generic_category());
+	ec.assign((int)GetLastError(), system_category());
     }
   else if (status_known(st))
     ec.clear();
@@ -1098,12 +1105,17 @@ fs::remove_all(const path& p, error_code& ec) noexcept
   uintmax_t count = 0;
   if (s.type() == file_type::directory)
     {
-      for (directory_iterator d(p, ec), end; !ec && d != end; d.increment(ec))
-	count += fs::remove_all(d->path(), ec);
-      if (ec.value() == ENOENT)
-	ec.clear();
-      else if (ec)
-	return -1;
+      directory_iterator d(p, ec), end;
+      while (!ec && d != end)
+	{
+	  const auto removed = fs::remove_all(d->path(), ec);
+	  if (removed == numeric_limits<uintmax_t>::max())
+	    return -1;
+	  count += removed;
+	  d.increment(ec);
+	  if (ec)
+	    return -1;
+	}
     }
 
   if (fs::remove(p, ec))

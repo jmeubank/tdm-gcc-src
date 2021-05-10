@@ -8,11 +8,15 @@
 //
 // Example of use in another analysis:
 //
-//	import "golang.org/x/tools/go/analysis/passes/inspect"
+//	import (
+//		"golang.org/x/tools/go/analysis"
+//		"golang.org/x/tools/go/analysis/passes/inspect"
+//		"golang.org/x/tools/go/ast/inspector"
+//	)
 //
 //	var Analyzer = &analysis.Analyzer{
 //		...
-//		Requires:       reflect.TypeOf(new(inspect.Analyzer)),
+//		Requires:       []*analysis.Analyzer{inspect.Analyzer},
 //	}
 //
 // 	func run(pass *analysis.Pass) (interface{}, error) {

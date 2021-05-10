@@ -1,5 +1,5 @@
 /* Target definitions for x86 running Darwin.
-   Copyright (C) 2001-2019 Free Software Foundation, Inc.
+   Copyright (C) 2001-2020 Free Software Foundation, Inc.
    Contributed by Apple Computer Inc.
 
 This file is part of GCC.
@@ -90,14 +90,12 @@ along with GCC; see the file COPYING3.  If not see
 #undef WCHAR_TYPE_SIZE
 #define WCHAR_TYPE_SIZE 32
 
-/* Generate branch islands stubs if this is true.  */
-extern int darwin_emit_branch_islands;
-
-#undef TARGET_MACHO_BRANCH_ISLANDS
-#define TARGET_MACHO_BRANCH_ISLANDS darwin_emit_branch_islands
+/* Generate pic symbol indirection stubs if this is true.  */
+#undef TARGET_MACHO_SYMBOL_STUBS
+#define TARGET_MACHO_SYMBOL_STUBS (darwin_symbol_stubs)
 
 /* For compatibility with OSX system tools, use the new style of pic stub
-   if this is set.  */
+   if this is set (default).  */
 #undef  MACHOPIC_ATT_STUB
 #define MACHOPIC_ATT_STUB (darwin_macho_att_stub)
 
@@ -241,16 +239,26 @@ extern int darwin_emit_branch_islands;
 #undef TARGET_ASM_OUTPUT_IDENT
 #define TARGET_ASM_OUTPUT_IDENT default_asm_output_ident_directive
 
-/* Darwin profiling -- call mcount.  */
+/* We always want jump tables in the text section:
+   * for PIC code, we need the subtracted symbol to be defined at
+     assembly-time.
+   * for mdynamic-no-pic, we cannot support jump tables in the .const
+     section for weak functions, this looks to ld64 like direct access
+     to the weak symbol from an anonymous atom.  */
+
+#undef JUMP_TABLES_IN_TEXT_SECTION
+#define JUMP_TABLES_IN_TEXT_SECTION 1
+
+/* Darwin profiling -- call mcount.
+   If we need a stub, then we unconditionally mark it as used.  */
 #undef FUNCTION_PROFILER
 #define FUNCTION_PROFILER(FILE, LABELNO)				\
   do {									\
-    if (TARGET_MACHO_BRANCH_ISLANDS 					\
+    if (TARGET_MACHO_SYMBOL_STUBS 					\
 	&& MACHOPIC_INDIRECT && !TARGET_64BIT)				\
       {									\
 	const char *name = machopic_mcount_stub_name ();		\
 	fprintf (FILE, "\tcall %s\n", name+1);  /*  skip '&'  */	\
-	machopic_validate_stub_or_non_lazy_ptr (name);			\
       }									\
     else fprintf (FILE, "\tcall mcount\n");				\
   } while (0)
@@ -326,10 +334,8 @@ extern int darwin_emit_branch_islands;
         }								\
     }
 
-/* This needs to move since i386 uses the first flag and other flags are
-   used in Mach-O.  */
-#undef MACHO_SYMBOL_FLAG_VARIABLE
-#define MACHO_SYMBOL_FLAG_VARIABLE ((SYMBOL_FLAG_MACH_DEP) << 3)
+/* First available SYMBOL flag bit for use by subtargets.  */
+#define SYMBOL_FLAG_SUBT_DEP (SYMBOL_FLAG_MACH_DEP << 5)
 
 #undef MACHOPIC_NL_SYMBOL_PTR_SECTION
 #define MACHOPIC_NL_SYMBOL_PTR_SECTION \

@@ -1,4 +1,4 @@
-/* Copyright (C) 2002-2019 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2020 Free Software Foundation, Inc.
    Contributed by Andy Vaught
    F2003 I/O support contributed by Jerry DeLisle
 
@@ -1201,7 +1201,7 @@ tempfile_open (const char *tempdir, char **fname)
 {
   int fd;
   const char *slash = "/";
-#if defined(HAVE_UMASK) && defined(HAVE_MKSTEMP) && (!defined(_WIN32) || defined(_WIN64))
+#if defined(HAVE_UMASK) && defined(HAVE_MKSTEMP)
   mode_t mode_mask;
 #endif
 
@@ -1225,7 +1225,7 @@ tempfile_open (const char *tempdir, char **fname)
   snprintf (template, tempdirlen + 23, "%s%sgfortrantmpXXXXXX", 
 	    tempdir, slash);
 
-#if defined(HAVE_UMASK) && (!defined(_WIN32) || defined(_WIN64))
+#ifdef HAVE_UMASK
   /* Temporarily set the umask such that the file has 0600 permissions.  */
   mode_mask = umask (S_IXUSR | S_IRWXG | S_IRWXO);
 #endif
@@ -1237,7 +1237,7 @@ tempfile_open (const char *tempdir, char **fname)
   set_close_on_exec (fd);
 #endif
 
-#if defined(HAVE_UMASK) && (!defined(_WIN32) || defined(_WIN64))
+#ifdef HAVE_UMASK
   (void) umask (mode_mask);
 #endif
 

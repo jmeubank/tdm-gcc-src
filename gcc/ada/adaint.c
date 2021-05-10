@@ -35,8 +35,14 @@
    library calls directly. This file contains all other routines.  */
 
 /* Ensure access to errno is thread safe.  */
+
+#ifndef _REENTRANT
 #define _REENTRANT
+#endif
+
+#ifndef _THREAD_SAFE
 #define _THREAD_SAFE
+#endif
 
 /* Use 64 bit Large File API */
 #if defined (__QNX__)
@@ -45,14 +51,6 @@
 #define _LARGEFILE_SOURCE
 #endif
 #define _FILE_OFFSET_BITS 64
-
-#if defined (__MINGW32__) || defined (__CYGWIN__)
-/* We MUST do this up-front, because definition of the UNICODE feature
- * test macros is (erroneously) delegated to this private header, and
- * these MUST be defined BEFORE any system header may be included.
- */
-#include "mingw32.h"
-#endif
 
 #ifdef __vxworks
 
@@ -76,6 +74,12 @@
    (such as chmod) are only available on VxWorks 6.  */
 #include "version.h"
 
+/* vwModNum.h and dosFsLib.h are needed for the VxWorks 6 rename workaround.
+   See below.  */
+#if (_WRS_VXWORKS_MAJOR == 6)
+#include <vwModNum.h>
+#include <dosFsLib.h>
+#endif /* 6.x */
 #endif /* VxWorks */
 
 #if defined (__APPLE__)
@@ -96,8 +100,26 @@
 #endif
 
 #ifdef IN_RTS
+
+#ifdef STANDALONE
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
+
+/* for CPU_SET/CPU_ZERO */
+#define _GNU_SOURCE
+#define __USE_GNU
+
+#include "runtime.h"
+
+#else
 #include "tconfig.h"
 #include "tsystem.h"
+#endif
+
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <time.h>
@@ -138,6 +160,8 @@ extern "C" {
 #endif
 
 #elif defined (__MINGW32__) || defined (__CYGWIN__)
+
+#include "mingw32.h"
 
 /* Current code page and CCS encoding to use, set in initialize.c.  */
 UINT __gnat_current_codepage;
@@ -332,7 +356,7 @@ int __gnat_use_acl = 1;
    system provides the routine readdir_r.
    ... but we never define it anywhere???  */
 #undef HAVE_READDIR_R
-
+
 #define MAYBE_TO_PTR32(argv) argv
 
 static const char ATTR_UNSET = 127;
@@ -398,13 +422,6 @@ __gnat_to_gm_time (OS_Time *p_time, int *p_year, int *p_month, int *p_day,
 {
   struct tm *res;
   time_t time = (time_t) *p_time;
-
-#ifdef _WIN32
-  /* On Windows systems, the time is sometimes rounded up to the nearest
-     even second, so if the number of seconds is odd, increment it.  */
-  if (time & 1)
-    time++;
-#endif
 
   res = gmtime (&time);
   if (res)
@@ -742,6 +759,20 @@ __gnat_rename (char *from, char *to)
     S2WSC (wfrom, from, GNAT_MAX_PATH_LEN);
     S2WSC (wto, to, GNAT_MAX_PATH_LEN);
     return _trename (wfrom, wto);
+  }
+#elif defined (__vxworks) && (_WRS_VXWORKS_MAJOR == 6)
+  {
+    /* When used on a dos filesystem under VxWorks 6.9 rename will trigger a
+       S_dosFsLib_FILE_NOT_FOUND errno when the file is not found.  Let's map
+       that to ENOENT so Ada.Directory.Rename can detect that and raise the
+       Name_Error exception.  */
+    int ret = rename (from, to);
+
+    if (ret && (errno == S_dosFsLib_FILE_NOT_FOUND))
+      {
+        errno = ENOENT;
+      }
+    return ret;
   }
 #else
   return rename (from, to);
@@ -1369,7 +1400,7 @@ win32_filetime (HANDLE h)
 
 /* As above but starting from a FILETIME.  */
 static void
-f2t (const FILETIME *ft, GNAT_TIME_T *t)
+f2t (const FILETIME *ft, __time64_t *t)
 {
   union
   {
@@ -1378,7 +1409,7 @@ f2t (const FILETIME *ft, GNAT_TIME_T *t)
   } t_write;
 
   t_write.ft_time = *ft;
-  *t = (GNAT_TIME_T) (t_write.ull_time / 10000000ULL - w32_epoch_offset);
+  *t = (__time64_t) (t_write.ull_time / 10000000ULL - w32_epoch_offset);
 }
 #endif
 
@@ -1391,7 +1422,7 @@ __gnat_file_time_name_attr (char* name, struct file_attributes* attr)
 #if defined (_WIN32)
       BOOL res;
       WIN32_FILE_ATTRIBUTE_DATA fad;
-      GNAT_TIME_T ret = -1;
+      __time64_t ret = -1;
       TCHAR wname[GNAT_MAX_PATH_LEN];
       S2WSC (wname, name, GNAT_MAX_PATH_LEN);
 

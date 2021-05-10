@@ -1,7 +1,7 @@
 // { dg-options "-std=gnu++17" }
 // { dg-do compile }
 
-// Copyright (C) 2016-2019 Free Software Foundation, Inc.
+// Copyright (C) 2016-2020 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -84,6 +84,10 @@ struct nonliteral
   bool operator>(const nonliteral&) const;
 };
 
+struct virtual_default_dtor {
+   virtual ~virtual_default_dtor() = default;
+};
+
 void default_ctor()
 {
   static_assert(is_default_constructible_v<variant<int, string>>);
@@ -95,6 +99,9 @@ void default_ctor()
   static_assert(noexcept(variant<int>()));
   static_assert(!noexcept(variant<Empty>()));
   static_assert(noexcept(variant<DefaultNoexcept>()));
+  {
+    variant<virtual_default_dtor> a;
+  }
 }
 
 void copy_ctor()
@@ -142,6 +149,19 @@ void arbitrary_ctor()
   static_assert(noexcept(variant<int, DefaultNoexcept>(int{})));
   static_assert(!noexcept(variant<int, Empty>(Empty{})));
   static_assert(noexcept(variant<int, DefaultNoexcept>(DefaultNoexcept{})));
+
+  // P0608R3 disallow narrowing conversions and boolean conversions
+  static_assert(!is_constructible_v<variant<float>, int>);
+  static_assert(!is_constructible_v<variant<float, vector<int>>, int>);
+  static_assert(is_constructible_v<variant<float, int>, char>);
+  static_assert(!is_constructible_v<variant<float, char>, int>);
+  static_assert(is_constructible_v<variant<float, long>, int>);
+  struct big_int { big_int(int) { } };
+  static_assert(is_constructible_v<variant<float, big_int>, int>);
+
+  static_assert(!is_constructible_v<variant<int>, unsigned>);
+  static_assert(!is_constructible_v<variant<bool>, int>);
+  static_assert(!is_constructible_v<variant<bool>, void*>);
 }
 
 struct none { none() = delete; };

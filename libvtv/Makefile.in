@@ -101,6 +101,7 @@ am__aclocal_m4_deps = $(top_srcdir)/../config/acx.m4 \
 	$(top_srcdir)/../config/lthostflags.m4 \
 	$(top_srcdir)/../config/multi.m4 \
 	$(top_srcdir)/../config/override.m4 \
+	$(top_srcdir)/../config/toolexeclibdir.m4 \
 	$(top_srcdir)/../ltoptions.m4 $(top_srcdir)/../ltsugar.m4 \
 	$(top_srcdir)/../ltversion.m4 $(top_srcdir)/../lt~obsolete.m4 \
 	$(top_srcdir)/acinclude.m4 $(top_srcdir)/../libtool.m4 \
@@ -157,11 +158,9 @@ AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
-MAYBE64 = $(if $(findstring x86_64,$(host_triplet)),$(if $(MULTISUBDIR),,_64),$(if $(findstring /64,$(MULTISUBDIR)),_64))
-TARGET_MAYBE64 = $(patsubst %.la,%$(MAYBE64).la,$@)
 libvtv_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
-	$(CXXFLAGS) $(libvtv_la_LDFLAGS) $(LDFLAGS) -o $(TARGET_MAYBE64)
+	$(CXXFLAGS) $(libvtv_la_LDFLAGS) $(LDFLAGS) -o $@
 @ENABLE_VTABLE_VERIFY_TRUE@am_libvtv_la_rpath = -rpath \
 @ENABLE_VTABLE_VERIFY_TRUE@	$(toolexeclibdir)
 libvtv_stubs_la_LIBADD =
@@ -172,7 +171,7 @@ libvtv_stubs_la_OBJECTS = $(am_libvtv_stubs_la_OBJECTS)
 libvtv_stubs_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
 	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
 	$(AM_CXXFLAGS) $(CXXFLAGS) $(libvtv_stubs_la_LDFLAGS) \
-	$(LDFLAGS) -o $(TARGET_MAYBE64)
+	$(LDFLAGS) -o $@
 @ENABLE_VTABLE_VERIFY_TRUE@@VTV_CYGMIN_TRUE@am_libvtv_stubs_la_rpath =  \
 @ENABLE_VTABLE_VERIFY_TRUE@@VTV_CYGMIN_TRUE@	-rpath \
 @ENABLE_VTABLE_VERIFY_TRUE@@VTV_CYGMIN_TRUE@	$(toolexeclibdir)
@@ -547,26 +546,10 @@ clean-toolexeclibLTLIBRARIES:
 	}
 
 libvtv.la: $(libvtv_la_OBJECTS) $(libvtv_la_DEPENDENCIES) $(EXTRA_libvtv_la_DEPENDENCIES) 
-	$(AM_V_CXXLD)$(libvtv_la_LINK) $(am_libvtv_la_rpath) $(libvtv_la_OBJECTS) $(libvtv_la_LIBADD) $(LIBS) \
-	&& rm -f "$@" \
-	&& cat ".libs/$(TARGET_MAYBE64)" | sed 's/\(.*\)_64\(\.dll\)\?\.a/\1\2\.a/' >"$@" \
-	&& cp -p "$@" ".libs/$@" \
-	&& cp -p "$@" ".libs/$@i" \
-	&& mv -f "$(patsubst %.la,%.dll.a,.libs/$(TARGET_MAYBE64))" tmp \
-	&& mv -f tmp "$(patsubst %.la,%.dll.a,.libs/$@)" \
-	&& mv -f "$(patsubst %.la,%.a,.libs/$(TARGET_MAYBE64))" tmp \
-	&& mv -f tmp "$(patsubst %.la,%.a,.libs/$@)"
+	$(AM_V_CXXLD)$(libvtv_la_LINK) $(am_libvtv_la_rpath) $(libvtv_la_OBJECTS) $(libvtv_la_LIBADD) $(LIBS)
 
 libvtv_stubs.la: $(libvtv_stubs_la_OBJECTS) $(libvtv_stubs_la_DEPENDENCIES) $(EXTRA_libvtv_stubs_la_DEPENDENCIES) 
-	$(AM_V_CXXLD)$(libvtv_stubs_la_LINK) $(am_libvtv_stubs_la_rpath) $(libvtv_stubs_la_OBJECTS) $(libvtv_stubs_la_LIBADD) $(LIBS) \
-	&& rm -f "$@" \
-	&& cat ".libs/$(TARGET_MAYBE64)" | sed 's/\(.*\)_64\(\.dll\)\?\.a/\1\2\.a/' >"$@" \
-	&& cp -p "$@" ".libs/$@" \
-	&& cp -p "$@" ".libs/$@i" \
-	&& mv -f "$(patsubst %.la,%.dll.a,.libs/$(TARGET_MAYBE64))" tmp \
-	&& mv -f tmp "$(patsubst %.la,%.dll.a,.libs/$@)" \
-	&& mv -f "$(patsubst %.la,%.a,.libs/$(TARGET_MAYBE64))" tmp \
-	&& mv -f tmp "$(patsubst %.la,%.a,.libs/$@)"
+	$(AM_V_CXXLD)$(libvtv_stubs_la_LINK) $(am_libvtv_stubs_la_rpath) $(libvtv_stubs_la_OBJECTS) $(libvtv_stubs_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)

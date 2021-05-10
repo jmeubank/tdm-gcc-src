@@ -1,6 +1,6 @@
 # libstdc++ "tool init file" for DejaGNU
 
-# Copyright (C) 2001-2019 Free Software Foundation, Inc.
+# Copyright (C) 2001-2020 Free Software Foundation, Inc.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -246,7 +246,10 @@ proc libstdc++_init { testfile } {
     }
 
     # Set the default timeout for v3 tests.
-    set tool_timeout 600
+    # You can override this in ~/.dejagnurc or a .exp file named by $DEJAGNU.
+    if {![info exists tool_timeout]} {
+      set tool_timeout 600
+    }
 
     # Default settings.
     set cxx [transform "g++"]
@@ -408,7 +411,7 @@ proc libstdc++-dg-test { prog do_what extra_tool_flags } {
     set options ""
     if { $extra_tool_flags != "" } {
 	verbose -log "extra_tool_flags are:"
-	verbose -log $extra_tool_flags
+	verbose -log -- $extra_tool_flags
 	if { [string first "-x c" $extra_tool_flags ] != -1 } {
 	    verbose -log "compiling and executing as C, not C++"
 	    set edit_tool_flags $extra_tool_flags
@@ -482,7 +485,7 @@ proc v3_target_compile { source dest type options } {
     global STATIC_LIBCXXFLAGS
     global tool
 
-    lappend options "additional_flags=-fno-diagnostics-show-caret -fdiagnostics-color=never"
+    lappend options "additional_flags=-fno-diagnostics-show-caret -fdiagnostics-color=never -fdiagnostics-urls=never"
 
     if { [target_info needs_status_wrapper] != "" && [info exists gluefile] } {
 	lappend options "libs=${gluefile}"
@@ -966,30 +969,6 @@ proc check_v3_target_debug_mode { } {
     }]
 }
 
-proc check_v3_target_profile_mode { } {
-    return [check_v3_target_prop_cached et_profile_mode {
-	global tool
-	# Set up and preprocess a C++ test program that depends
-	# on profile mode activated.
-	set src profile_mode[pid].cc
-
-	set f [open $src "w"]
-	puts $f "#ifndef _GLIBCXX_PROFILE"
-	puts $f "#  error No profile mode"
-	puts $f "#endif"
-	close $f
-
-	set lines [v3_target_compile $src /dev/null preprocess ""]
-	file delete $src
-
-	if [string match "" $lines] {
-	    # No error message, preprocessing succeeded.
-	    return 1
-	}
-	return 0
-    }]
-}
-
 proc check_v3_target_normal_mode { } {
     return [check_v3_target_prop_cached et_normal_mode {
 	global tool
@@ -999,9 +978,7 @@ proc check_v3_target_normal_mode { } {
 
 	set f [open $src "w"]
 	puts $f "#include <bits/c++config.h>"
-	puts $f "#if defined(_GLIBCXX_DEBUG) || \\"
-	puts $f "    defined(_GLIBCXX_PROFILE) || \\"
-	puts $f "    defined(_GLIBCXX_PARALLEL)"
+	puts $f "#if defined(_GLIBCXX_DEBUG) || defined(_GLIBCXX_PARALLEL)"
 	puts $f "#  error No normal mode"
 	puts $f "#endif"
 	close $f
@@ -1623,7 +1600,8 @@ proc check_effective_target_tbb-backend { } {
         puts $f "}"
         close $f
 
-        set lines [v3_target_compile $src $exe executable "additional_flags=-std=c++17 additional_flags=-ltbb"]
+        set lines [v3_target_compile $src $exe executable "additional_flags=-std=c++17 additional_flags=-ltbb
+                                                           additional_flags=-DTBB_SUPPRESS_DEPRECATED_MESSAGES=1"]
         file delete $src
 
         if [string match "" $lines] {

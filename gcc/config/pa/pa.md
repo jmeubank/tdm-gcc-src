@@ -1,5 +1,5 @@
 ;;- Machine description for HP PA-RISC architecture for GCC compiler
-;;   Copyright (C) 1992-2019 Free Software Foundation, Inc.
+;;   Copyright (C) 1992-2020 Free Software Foundation, Inc.
 ;;   Contributed by the Center for Software Science at the University
 ;;   of Utah.
 
@@ -765,7 +765,7 @@
 
 (define_insn "scc"
   [(set (match_operand:SI 0 "register_operand" "=r")
-	(match_operator:SI 3 "comparison_operator"
+	(match_operator:SI 3 "ordered_comparison_operator"
 			   [(match_operand:SI 1 "reg_or_0_operand" "rM")
 			    (match_operand:SI 2 "arith11_operand" "rI")]))]
   ""
@@ -775,7 +775,7 @@
 
 (define_insn ""
   [(set (match_operand:DI 0 "register_operand" "=r")
-	(match_operator:DI 3 "comparison_operator"
+	(match_operator:DI 3 "ordered_comparison_operator"
 			   [(match_operand:DI 1 "reg_or_0_operand" "rM")
 			    (match_operand:DI 2 "arith11_operand" "rI")]))]
   "TARGET_64BIT"
@@ -785,10 +785,10 @@
 
 (define_insn "iorscc"
   [(set (match_operand:SI 0 "register_operand" "=r")
-	(ior:SI (match_operator:SI 3 "comparison_operator"
+	(ior:SI (match_operator:SI 3 "ordered_comparison_operator"
 				   [(match_operand:SI 1 "reg_or_0_operand" "rM")
 				    (match_operand:SI 2 "arith11_operand" "rI")])
-		(match_operator:SI 6 "comparison_operator"
+		(match_operator:SI 6 "ordered_comparison_operator"
 				   [(match_operand:SI 4 "reg_or_0_operand" "rM")
 				    (match_operand:SI 5 "arith11_operand" "rI")])))]
   ""
@@ -798,10 +798,10 @@
 
 (define_insn ""
   [(set (match_operand:DI 0 "register_operand" "=r")
-	(ior:DI (match_operator:DI 3 "comparison_operator"
+	(ior:DI (match_operator:DI 3 "ordered_comparison_operator"
 				   [(match_operand:DI 1 "reg_or_0_operand" "rM")
 				    (match_operand:DI 2 "arith11_operand" "rI")])
-		(match_operator:DI 6 "comparison_operator"
+		(match_operator:DI 6 "ordered_comparison_operator"
 				   [(match_operand:DI 4 "reg_or_0_operand" "rM")
 				    (match_operand:DI 5 "arith11_operand" "rI")])))]
   "TARGET_64BIT"
@@ -813,7 +813,7 @@
 ;; from an scc insn (negscc and incscc).
 (define_insn "negscc"
   [(set (match_operand:SI 0 "register_operand" "=r")
-	(neg:SI (match_operator:SI 3 "comparison_operator"
+	(neg:SI (match_operator:SI 3 "ordered_comparison_operator"
 	       [(match_operand:SI 1 "reg_or_0_operand" "rM")
 		(match_operand:SI 2 "arith11_operand" "rI")])))]
   ""
@@ -823,7 +823,7 @@
 
 (define_insn ""
   [(set (match_operand:DI 0 "register_operand" "=r")
-	(neg:DI (match_operator:DI 3 "comparison_operator"
+	(neg:DI (match_operator:DI 3 "ordered_comparison_operator"
 	       [(match_operand:DI 1 "reg_or_0_operand" "rM")
 		(match_operand:DI 2 "arith11_operand" "rI")])))]
   "TARGET_64BIT"
@@ -904,7 +904,7 @@
 
 (define_insn "incscc"
   [(set (match_operand:SI 0 "register_operand" "=r,r")
- 	(plus:SI (match_operator:SI 4 "comparison_operator"
+ 	(plus:SI (match_operator:SI 4 "ordered_comparison_operator"
 		    [(match_operand:SI 2 "register_operand" "r,r")
 		     (match_operand:SI 3 "arith11_operand" "rI,rI")])
 		 (match_operand:SI 1 "register_operand" "0,?r")))]
@@ -917,7 +917,7 @@
 
 (define_insn ""
   [(set (match_operand:DI 0 "register_operand" "=r,r")
- 	(plus:DI (match_operator:DI 4 "comparison_operator"
+ 	(plus:DI (match_operator:DI 4 "ordered_comparison_operator"
 		    [(match_operand:DI 2 "register_operand" "r,r")
 		     (match_operand:DI 3 "arith11_operand" "rI,rI")])
 		 (match_operand:DI 1 "register_operand" "0,?r")))]
@@ -1062,7 +1062,7 @@
 (define_insn "decscc"
   [(set (match_operand:SI 0 "register_operand" "=r,r")
 	(minus:SI (match_operand:SI 1 "register_operand" "0,?r")
-		  (match_operator:SI 4 "comparison_operator"
+		  (match_operator:SI 4 "ordered_comparison_operator"
 		     [(match_operand:SI 2 "register_operand" "r,r")
 		      (match_operand:SI 3 "arith11_operand" "rI,rI")])))]
   ""
@@ -1075,7 +1075,7 @@
 (define_insn ""
   [(set (match_operand:DI 0 "register_operand" "=r,r")
 	(minus:DI (match_operand:DI 1 "register_operand" "0,?r")
-		  (match_operator:DI 4 "comparison_operator"
+		  (match_operator:DI 4 "ordered_comparison_operator"
 		     [(match_operand:DI 2 "register_operand" "r,r")
 		      (match_operand:DI 3 "arith11_operand" "rI,rI")])))]
   "TARGET_64BIT"
@@ -1242,7 +1242,7 @@
 (define_expand "movsicc"
   [(set (match_operand:SI 0 "register_operand" "")
 	(if_then_else:SI
-	 (match_operand 1 "comparison_operator" "")
+	 (match_operand 1 "ordered_comparison_operator" "")
 	 (match_operand:SI 2 "reg_or_cint_move_operand" "")
 	 (match_operand:SI 3 "reg_or_cint_move_operand" "")))]
   ""
@@ -1264,7 +1264,7 @@
 (define_insn ""
   [(set (match_operand:SI 0 "register_operand" "=r,r,r,r")
 	(if_then_else:SI
-	 (match_operator 2 "comparison_operator"
+	 (match_operator 2 "ordered_comparison_operator"
 	    [(match_operand:SI 3 "register_operand" "r,r,r,r")
 	     (match_operand:SI 4 "arith11_operand" "rI,rI,rI,rI")])
 	 (match_operand:SI 1 "reg_or_cint_move_operand" "0,J,N,K")
@@ -1281,7 +1281,7 @@
 (define_insn ""
   [(set (match_operand:SI 0 "register_operand" "=r,r,r,r,r,r,r,r")
 	(if_then_else:SI
-	 (match_operator 5 "comparison_operator"
+	 (match_operator 5 "ordered_comparison_operator"
 	    [(match_operand:SI 3 "register_operand" "r,r,r,r,r,r,r,r")
 	     (match_operand:SI 4 "arith11_operand" "rI,rI,rI,rI,rI,rI,rI,rI")])
 	 (match_operand:SI 1 "reg_or_cint_move_operand" "0,0,0,0,r,J,N,K")
@@ -1302,7 +1302,7 @@
 (define_expand "movdicc"
   [(set (match_operand:DI 0 "register_operand" "")
 	(if_then_else:DI
-	 (match_operand 1 "comparison_operator" "")
+	 (match_operand 1 "ordered_comparison_operator" "")
 	 (match_operand:DI 2 "reg_or_cint_move_operand" "")
 	 (match_operand:DI 3 "reg_or_cint_move_operand" "")))]
   "TARGET_64BIT"
@@ -1318,7 +1318,7 @@
 (define_insn ""
   [(set (match_operand:DI 0 "register_operand" "=r,r,r,r,r")
 	(if_then_else:DI
-	 (match_operator 2 "comparison_operator"
+	 (match_operator 2 "ordered_comparison_operator"
 	    [(match_operand:DI 3 "register_operand" "r,r,r,r,r")
 	     (match_operand:DI 4 "arith11_operand" "rI,rI,rI,rI,rI")])
 	 (match_operand:DI 1 "reg_or_cint_move_operand" "0,r,J,N,K")
@@ -1336,7 +1336,7 @@
 (define_insn ""
   [(set (match_operand:DI 0 "register_operand" "=r,r,r,r,r,r,r,r")
 	(if_then_else:DI
-	 (match_operator 5 "comparison_operator"
+	 (match_operator 5 "ordered_comparison_operator"
 	    [(match_operand:DI 3 "register_operand" "r,r,r,r,r,r,r,r")
 	     (match_operand:DI 4 "arith11_operand" "rI,rI,rI,rI,rI,rI,rI,rI")])
 	 (match_operand:DI 1 "reg_or_cint_move_operand" "0,0,0,0,r,J,N,K")
@@ -1413,7 +1413,7 @@
 (define_insn ""
   [(set (pc)
 	(if_then_else
-	 (match_operator 3 "comparison_operator"
+	 (match_operator 3 "ordered_comparison_operator"
 			 [(match_operand:SI 1 "reg_or_0_operand" "rM")
 			  (match_operand:SI 2 "arith5_operand" "rL")])
 	 (label_ref (match_operand 0 "" ""))
@@ -1442,7 +1442,7 @@
 (define_insn ""
   [(set (pc)
 	(if_then_else
-	 (match_operator 3 "comparison_operator"
+	 (match_operator 3 "ordered_comparison_operator"
 			 [(match_operand:SI 1 "reg_or_0_operand" "rM")
 			  (match_operand:SI 2 "arith5_operand" "rL")])
 	 (pc)
@@ -1469,7 +1469,7 @@
 (define_insn ""
   [(set (pc)
 	(if_then_else
-	 (match_operator 3 "comparison_operator"
+	 (match_operator 3 "ordered_comparison_operator"
 			 [(match_operand:DI 1 "reg_or_0_operand" "rM")
 			  (match_operand:DI 2 "reg_or_0_operand" "rM")])
 	 (label_ref (match_operand 0 "" ""))
@@ -1498,7 +1498,7 @@
 (define_insn ""
   [(set (pc)
 	(if_then_else
-	 (match_operator 3 "comparison_operator"
+	 (match_operator 3 "ordered_comparison_operator"
 			 [(match_operand:DI 1 "reg_or_0_operand" "rM")
 			  (match_operand:DI 2 "reg_or_0_operand" "rM")])
 	 (pc)
@@ -3162,9 +3162,9 @@
 
 ;; The definition of this insn does not really explain what it does,
 ;; but it should suffice that anything generated as this insn will be
-;; recognized as a movmemsi operation, and that it will not successfully
+;; recognized as a cpymemsi operation, and that it will not successfully
 ;; combine with anything.
-(define_expand "movmemsi"
+(define_expand "cpymemsi"
   [(parallel [(set (match_operand:BLK 0 "" "")
 		   (match_operand:BLK 1 "" ""))
 	      (clobber (match_dup 4))
@@ -3244,7 +3244,7 @@
 ;; operands 0 and 1 are both equivalent to symbolic MEMs.  Thus, we are
 ;; forced to internally copy operands 0 and 1 to operands 7 and 8,
 ;; respectively.  We then split or peephole optimize after reload.
-(define_insn "movmemsi_prereload"
+(define_insn "cpymemsi_prereload"
   [(set (mem:BLK (match_operand:SI 0 "register_operand" "r,r"))
 	(mem:BLK (match_operand:SI 1 "register_operand" "r,r")))
    (clobber (match_operand:SI 2 "register_operand" "=&r,&r"))	;loop cnt/tmp
@@ -3337,7 +3337,7 @@
     }
 }")
 
-(define_insn "movmemsi_postreload"
+(define_insn "cpymemsi_postreload"
   [(set (mem:BLK (match_operand:SI 0 "register_operand" "+r,r"))
 	(mem:BLK (match_operand:SI 1 "register_operand" "+r,r")))
    (clobber (match_operand:SI 2 "register_operand" "=&r,&r"))	;loop cnt/tmp
@@ -3352,7 +3352,7 @@
   "* return pa_output_block_move (operands, !which_alternative);"
   [(set_attr "type" "multi,multi")])
 
-(define_expand "movmemdi"
+(define_expand "cpymemdi"
   [(parallel [(set (match_operand:BLK 0 "" "")
 		   (match_operand:BLK 1 "" ""))
 	      (clobber (match_dup 4))
@@ -3432,7 +3432,7 @@
 ;; operands 0 and 1 are both equivalent to symbolic MEMs.  Thus, we are
 ;; forced to internally copy operands 0 and 1 to operands 7 and 8,
 ;; respectively.  We then split or peephole optimize after reload.
-(define_insn "movmemdi_prereload"
+(define_insn "cpymemdi_prereload"
   [(set (mem:BLK (match_operand:DI 0 "register_operand" "r,r"))
 	(mem:BLK (match_operand:DI 1 "register_operand" "r,r")))
    (clobber (match_operand:DI 2 "register_operand" "=&r,&r"))	;loop cnt/tmp
@@ -3525,7 +3525,7 @@
     }
 }")
 
-(define_insn "movmemdi_postreload"
+(define_insn "cpymemdi_postreload"
   [(set (mem:BLK (match_operand:DI 0 "register_operand" "+r,r"))
 	(mem:BLK (match_operand:DI 1 "register_operand" "+r,r")))
    (clobber (match_operand:DI 2 "register_operand" "=&r,&r"))	;loop cnt/tmp
@@ -6416,9 +6416,32 @@
   [(set (match_operand:DI 0 "register_operand" "")
 	(ashift:DI (match_operand:DI 1 "lhs_lshift_operand" "")
 		   (match_operand:DI 2 "arith32_operand" "")))]
-  "TARGET_64BIT"
+  ""
   "
 {
+  if (!TARGET_64BIT)
+    {
+      if (REG_P (operands[0]) && GET_CODE (operands[2]) == CONST_INT)
+	{
+	  unsigned HOST_WIDE_INT shift = UINTVAL (operands[2]);
+	  if (shift >= 1 && shift <= 31)
+	    {
+	      rtx dst = operands[0];
+	      rtx src = force_reg (DImode, operands[1]);
+	      emit_insn (gen_shd_internal (gen_highpart (SImode, dst),
+					   gen_lowpart (SImode, src),
+					   GEN_INT (32-shift),
+					   gen_highpart (SImode, src),
+					   GEN_INT (shift)));
+	      emit_insn (gen_ashlsi3 (gen_lowpart (SImode, dst),
+				      gen_lowpart (SImode, src),
+				      GEN_INT (shift)));
+	      DONE;
+	    }
+	}
+      /* Fallback to using optabs.c's expand_doubleword_shift.  */
+      FAIL;
+    }
   if (GET_CODE (operands[2]) != CONST_INT)
     {
       rtx temp = gen_reg_rtx (DImode);
@@ -6604,32 +6627,82 @@
    (set_attr "length" "4")])
 
 ; Shift right pair word 0 to 31 bits.
-(define_insn "shrpsi4"
-  [(set (match_operand:SI 0 "register_operand" "=r,r")
-	(ior:SI (ashift:SI (match_operand:SI 1 "register_operand" "r,r")
-			   (minus:SI (const_int 32)
-			     (match_operand:SI 3 "shift5_operand" "q,n")))
-		(lshiftrt:SI (match_operand:SI 2 "register_operand" "r,r")
-			     (match_dup 3))))]
+(define_insn "*shrpsi4_1"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+	(match_operator:SI 4 "plus_xor_ior_operator"
+	  [(ashift:SI (match_operand:SI 1 "register_operand" "r")
+		      (minus:SI (const_int 32)
+				(match_operand:SI 3 "register_operand" "q")))
+	   (lshiftrt:SI (match_operand:SI 2 "register_operand" "r")
+			(match_dup 3))]))]
   ""
-  "@
-   {vshd %1,%2,%0|shrpw %1,%2,%%sar,%0}
-   {shd|shrpw} %1,%2,%3,%0"
+  "{vshd %1,%2,%0|shrpw %1,%2,%%sar,%0}"
+  [(set_attr "type" "shift")
+   (set_attr "length" "4")])
+
+(define_insn "*shrpsi4_2"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+	(match_operator:SI 4 "plus_xor_ior_operator"
+	  [(lshiftrt:SI (match_operand:SI 2 "register_operand" "r")
+			(match_operand:SI 3 "register_operand" "q"))
+	   (ashift:SI (match_operand:SI 1 "register_operand" "r")
+		      (minus:SI (const_int 32)
+				(match_dup 3)))]))]
+  ""
+  "{vshd %1,%2,%0|shrpw %1,%2,%%sar,%0}"
   [(set_attr "type" "shift")
    (set_attr "length" "4")])
 
 ; Shift right pair doubleword 0 to 63 bits.
-(define_insn "shrpdi4"
-  [(set (match_operand:DI 0 "register_operand" "=r,r")
-	(ior:DI (ashift:DI (match_operand:SI 1 "register_operand" "r,r")
-			   (minus:DI (const_int 64)
-			     (match_operand:DI 3 "shift6_operand" "q,n")))
-		(lshiftrt:DI (match_operand:DI 2 "register_operand" "r,r")
-			     (match_dup 3))))]
+(define_insn "*shrpdi4_1"
+  [(set (match_operand:DI 0 "register_operand" "=r")
+	(match_operator:DI 4 "plus_xor_ior_operator"
+	  [(ashift:DI (match_operand:DI 1 "register_operand" "r")
+		      (minus:DI (const_int 64)
+				(match_operand:DI 3 "register_operand" "q")))
+	   (lshiftrt:DI (match_operand:DI 2 "register_operand" "r")
+			(match_dup 3))]))]
   "TARGET_64BIT"
-  "@
-   shrpd %1,%2,%%sar,%0
-   shrpd %1,%2,%3,%0"
+  "shrpd %1,%2,%%sar,%0"
+  [(set_attr "type" "shift")
+   (set_attr "length" "4")])
+
+(define_insn "*shrpdi4_2"
+  [(set (match_operand:DI 0 "register_operand" "=r")
+	(match_operator:DI 4 "plus_xor_ior_operator"
+	  [(lshiftrt:DI (match_operand:DI 2 "register_operand" "r")
+			(match_operand:DI 3 "shift6_operand" "q"))
+	   (ashift:DI (match_operand:SI 1 "register_operand" "r")
+		      (minus:DI (const_int 64)
+				(match_dup 3)))]))]
+  "TARGET_64BIT"
+  "shrpd %1,%2,%%sar,%0"
+  [(set_attr "type" "shift")
+   (set_attr "length" "4")])
+
+(define_insn "*shrpdi4_3"
+  [(set (match_operand:DI 0 "register_operand" "=r")
+	(match_operator:DI 5 "plus_xor_ior_operator"
+	  [(ashift:DI (match_operand:DI 1 "register_operand" "r")
+		      (match_operand:DI 3 "const_int_operand" "n"))
+	   (lshiftrt:DI (match_operand:DI 2 "register_operand" "r")
+			(match_operand:DI 4 "const_int_operand" "n"))]))]
+  "TARGET_64BIT
+   && INTVAL (operands[3]) + INTVAL (operands[4]) == 64"
+  "shrpd %1,%2,%4,%0"
+  [(set_attr "type" "shift")
+   (set_attr "length" "4")])
+
+(define_insn "*shrpdi4_4"
+  [(set (match_operand:DI 0 "register_operand" "=r")
+	(match_operator:DI 5 "plus_xor_ior_operator"
+	  [(lshiftrt:DI (match_operand:DI 2 "register_operand" "r")
+			(match_operand:DI 4 "const_int_operand" "n"))
+	   (ashift:DI (match_operand:DI 1 "register_operand" "r")
+		      (match_operand:DI 3 "const_int_operand" "n"))]))]
+  "TARGET_64BIT
+   && INTVAL (operands[3]) + INTVAL (operands[4]) == 64"
+  "shrpd %1,%2,%4,%0"
   [(set_attr "type" "shift")
    (set_attr "length" "4")])
 
@@ -6668,7 +6741,7 @@
   /* Else expand normally.  */
 }")
 
-(define_insn ""
+(define_insn "*rotlsi3_internal"
   [(set (match_operand:SI 0 "register_operand" "=r")
         (rotate:SI (match_operand:SI 1 "register_operand" "r")
                    (match_operand:SI 2 "const_int_operand" "n")))]
@@ -6677,6 +6750,54 @@
 {
   operands[2] = GEN_INT ((32 - INTVAL (operands[2])) & 31);
   return \"{shd|shrpw} %1,%1,%2,%0\";
+}"
+  [(set_attr "type" "shift")
+   (set_attr "length" "4")])
+
+(define_insn "rotrdi3"
+  [(set (match_operand:DI 0 "register_operand" "=r,r")
+	(rotatert:DI (match_operand:DI 1 "register_operand" "r,r")
+		     (match_operand:DI 2 "shift6_operand" "q,n")))]
+  "TARGET_64BIT"
+  "*
+{
+  if (GET_CODE (operands[2]) == CONST_INT)
+    {
+      operands[2] = GEN_INT (INTVAL (operands[2]) & 63);
+      return \"shrpd %1,%1,%2,%0\";
+    }
+  else
+    return \"shrpd %1,%1,%%sar,%0\";
+}"
+  [(set_attr "type" "shift")
+   (set_attr "length" "4")])
+
+(define_expand "rotldi3"
+  [(set (match_operand:DI 0 "register_operand" "")
+        (rotate:DI (match_operand:DI 1 "register_operand" "")
+                   (match_operand:DI 2 "arith32_operand" "")))]
+  "TARGET_64BIT"
+  "
+{
+  if (GET_CODE (operands[2]) != CONST_INT)
+    {
+      rtx temp = gen_reg_rtx (DImode);
+      emit_insn (gen_subdi3 (temp, GEN_INT (64), operands[2]));
+      emit_insn (gen_rotrdi3 (operands[0], operands[1], temp));
+      DONE;
+    }
+  /* Else expand normally.  */
+}")
+
+(define_insn "*rotldi3_internal"
+  [(set (match_operand:DI 0 "register_operand" "=r")
+        (rotate:DI (match_operand:DI 1 "register_operand" "r")
+                   (match_operand:DI 2 "const_int_operand" "n")))]
+  "TARGET_64BIT"
+  "*
+{
+  operands[2] = GEN_INT ((64 - INTVAL (operands[2])) & 63);
+  return \"shrpd %1,%1,%2,%0\";
 }"
   [(set_attr "type" "shift")
    (set_attr "length" "4")])
@@ -6704,6 +6825,15 @@
   "{shd|shrpw} %1,%2,%4,%0"
   [(set_attr "type" "shift")
    (set_attr "length" "4")])
+
+(define_expand "shd_internal"
+  [(set (match_operand:SI 0 "register_operand")
+	(ior:SI
+	  (lshiftrt:SI (match_operand:SI 1 "register_operand")
+		       (match_operand:SI 2 "const_int_operand"))
+	  (ashift:SI (match_operand:SI 3 "register_operand")
+		     (match_operand:SI 4 "const_int_operand"))))]
+  "")
 
 (define_insn ""
   [(set (match_operand:SI 0 "register_operand" "=r")
@@ -6909,10 +7039,7 @@
 
   lab = copy_to_reg (lab);
 
-  /* Restore the stack and frame pointers.  The virtual_stack_vars_rtx
-     is saved instead of the hard_frame_pointer_rtx in the save area.
-     As a result, an extra instruction is needed to adjust for the offset
-     of the virtual stack variables and the hard frame pointer.  */
+  /* Restore the stack and frame pointers.  */
   fp = copy_to_reg (fp);
   emit_stack_restore (SAVE_NONLOCAL, stack);
 
@@ -6920,7 +7047,7 @@
   emit_insn (gen_blockage ());
   emit_clobber (hard_frame_pointer_rtx);
   emit_clobber (frame_pointer_rtx);
-  emit_move_insn (hard_frame_pointer_rtx, plus_constant (Pmode, fp, -8));
+  emit_move_insn (hard_frame_pointer_rtx, fp);
 
   emit_use (hard_frame_pointer_rtx);
   emit_use (stack_pointer_rtx);
@@ -8703,9 +8830,7 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
      restoring the gp.  */
   emit_move_insn (pv, lab);
 
-  /* Restore the stack and frame pointers.  The virtual_stack_vars_rtx
-     is saved instead of the hard_frame_pointer_rtx in the save area.
-     We need to adjust for the offset between these two values.  */
+  /* Restore the stack and frame pointers.  */
   fp = copy_to_reg (fp);
   emit_stack_restore (SAVE_NONLOCAL, stack);
 
@@ -8713,7 +8838,7 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
   emit_insn (gen_blockage ());
   emit_clobber (hard_frame_pointer_rtx);
   emit_clobber (frame_pointer_rtx);
-  emit_move_insn (hard_frame_pointer_rtx, plus_constant (Pmode, fp, -8));
+  emit_move_insn (hard_frame_pointer_rtx, fp);
 
   emit_use (hard_frame_pointer_rtx);
   emit_use (stack_pointer_rtx);
@@ -9062,7 +9187,7 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
 (define_insn "decrement_and_branch_until_zero"
   [(set (pc)
 	(if_then_else
-	  (match_operator 2 "comparison_operator"
+	  (match_operator 2 "ordered_comparison_operator"
 	   [(plus:SI
 	      (match_operand:SI 0 "reg_before_reload_operand" "+!r,!*f,*Q")
 	      (match_operand:SI 1 "int5_operand" "L,L,L"))
@@ -10091,23 +10216,55 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
    (set_attr "length" "4,16")])
 
 ;; PA 2.0 hardware supports out-of-order execution of loads and stores, so
-;; we need a memory barrier to enforce program order for memory references.
-;; Since we want PA 1.x code to be PA 2.0 compatible, we also need the
-;; barrier when generating PA 1.x code.
+;; we need memory barriers to enforce program order for memory references
+;; when the TLB and PSW O bits are not set.  We assume all PA 2.0 systems
+;; are weakly ordered since neither HP-UX or Linux set the PSW O bit.  Since
+;; we want PA 1.x code to be PA 2.0 compatible, we also need barriers when
+;; generating PA 1.x code even though all PA 1.x systems are strongly ordered.
+
+;; When barriers are needed, we use a strongly ordered ldcw instruction as
+;; the barrier.  Most PA 2.0 targets are cache coherent.  In that case, we
+;; can use the coherent cache control hint and avoid aligning the ldcw
+;; address.  In spite of its description, it is not clear that the sync
+;; instruction works as a barrier.
 
 (define_expand "memory_barrier"
-  [(set (match_dup 0)
-        (unspec:BLK [(match_dup 0)] UNSPEC_MEMORY_BARRIER))]
+  [(parallel
+     [(set (match_dup 0) (unspec:BLK [(match_dup 0)] UNSPEC_MEMORY_BARRIER))
+      (clobber (match_dup 1))])]
   ""
 {
-  operands[0] = gen_rtx_MEM (BLKmode, gen_rtx_SCRATCH (Pmode));
+  /* We don't need a barrier if the target uses ordered memory references.  */
+  if (TARGET_ORDERED)
+    FAIL;
+  operands[1] = gen_reg_rtx (Pmode);
+  operands[0] = gen_rtx_MEM (BLKmode, operands[1]);
   MEM_VOLATILE_P (operands[0]) = 1;
 })
 
-(define_insn "*memory_barrier"
+(define_insn "*memory_barrier_coherent"
   [(set (match_operand:BLK 0 "" "")
-        (unspec:BLK [(match_dup 0)] UNSPEC_MEMORY_BARRIER))]
-  ""
-  "sync"
+        (unspec:BLK [(match_dup 0)] UNSPEC_MEMORY_BARRIER))
+   (clobber (match_operand 1 "pmode_register_operand" "=r"))]
+  "TARGET_PA_20 && TARGET_COHERENT_LDCW"
+  "ldcw,co 0(%%sp),%1"
   [(set_attr "type" "binary")
    (set_attr "length" "4")])
+
+(define_insn "*memory_barrier_64"
+  [(set (match_operand:BLK 0 "" "")
+        (unspec:BLK [(match_dup 0)] UNSPEC_MEMORY_BARRIER))
+    (clobber (match_operand 1 "pmode_register_operand" "=&r"))]
+  "TARGET_64BIT"
+  "ldo 15(%%sp),%1\n\tdepd %%r0,63,3,%1\n\tldcw 0(%1),%1"
+  [(set_attr "type" "binary")
+   (set_attr "length" "12")])
+
+(define_insn "*memory_barrier_32"
+  [(set (match_operand:BLK 0 "" "")
+        (unspec:BLK [(match_dup 0)] UNSPEC_MEMORY_BARRIER))
+    (clobber (match_operand 1 "pmode_register_operand" "=&r"))]
+  ""
+  "ldo 15(%%sp),%1\n\t{dep|depw} %%r0,31,3,%1\n\tldcw 0(%1),%1"
+  [(set_attr "type" "binary")
+   (set_attr "length" "12")])

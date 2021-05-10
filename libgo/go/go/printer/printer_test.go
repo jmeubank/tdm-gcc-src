@@ -153,6 +153,10 @@ func runcheck(t *testing.T, source, golden string, mode checkMode) {
 		// (This is very difficult to achieve in general and for now
 		// it is only checked for files explicitly marked as such.)
 		res, err = format(gld, mode)
+		if err != nil {
+			t.Error(err)
+			return
+		}
 		if err := diff(golden, fmt.Sprintf("format(%s)", golden), gld, res); err != nil {
 			t.Errorf("golden is not idempotent: %s", err)
 		}
@@ -744,6 +748,9 @@ func TestParenthesizedDecl(t *testing.T) {
 	const src = "package p; var ( a float64; b int )"
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "", src, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// print the original package
 	var buf bytes.Buffer
@@ -766,5 +773,36 @@ func TestParenthesizedDecl(t *testing.T) {
 
 	if noparen != original {
 		t.Errorf("got %q, want %q", noparen, original)
+	}
+}
+
+// Verify that we don't print a newline between "return" and its results, as
+// that would incorrectly cause a naked return.
+func TestIssue32854(t *testing.T) {
+	src := `package foo
+
+func f() {
+        return Composite{
+                call(),
+        }
+}`
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "", src, 0)
+	if err != nil {
+		panic(err)
+	}
+
+	// Replace the result with call(), which is on the next line.
+	fd := file.Decls[0].(*ast.FuncDecl)
+	ret := fd.Body.List[0].(*ast.ReturnStmt)
+	ret.Results[0] = ret.Results[0].(*ast.CompositeLit).Elts[0]
+
+	var buf bytes.Buffer
+	if err := Fprint(&buf, fset, ret); err != nil {
+		t.Fatal(err)
+	}
+	want := "return call()"
+	if got := buf.String(); got != want {
+		t.Fatalf("got %q, want %q", got, want)
 	}
 }

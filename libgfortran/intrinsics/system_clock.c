@@ -1,5 +1,5 @@
 /* Implementation of the SYSTEM_CLOCK intrinsic.
-   Copyright (C) 2004-2019 Free Software Foundation, Inc.
+   Copyright (C) 2004-2020 Free Software Foundation, Inc.
 
 This file is part of the GNU Fortran runtime library (libgfortran).
 
@@ -27,11 +27,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #include <limits.h>
 
 #include "time_1.h"
-
-#ifdef __MINGW32__
-#include <pthread.h>
-#include <pthread_time.h>
-#endif
 
 
 #if !defined(__MINGW32__)

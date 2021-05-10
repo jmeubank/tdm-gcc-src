@@ -60,7 +60,7 @@ to -f '{{.ImportPath}}'. The struct being passed to the template is:
         StaleReason   string   // explanation for Stale==true
         Root          string   // Go root or Go path dir containing this package
         ConflictDir   string   // this directory shadows Dir in $GOPATH
-        BinaryOnly    bool     // binary-only package: cannot be recompiled from sources
+        BinaryOnly    bool     // binary-only package (no longer supported)
         ForTest       string   // package is only for use in named test
         Export        string   // file containing export data (when using -export)
         Module        *Module  // info about package's containing module, if any (can be nil)
@@ -202,22 +202,26 @@ When listing modules, the -f flag still specifies a format template
 applied to a Go struct, but now a Module struct:
 
     type Module struct {
-        Path     string       // module path
-        Version  string       // module version
-        Versions []string     // available module versions (with -versions)
-        Replace  *Module      // replaced by this module
-        Time     *time.Time   // time version was created
-        Update   *Module      // available update, if any (with -u)
-        Main     bool         // is this the main module?
-        Indirect bool         // is this module only an indirect dependency of main module?
-        Dir      string       // directory holding files for this module, if any
-        GoMod    string       // path to go.mod file for this module, if any
-        Error    *ModuleError // error loading module
+        Path      string       // module path
+        Version   string       // module version
+        Versions  []string     // available module versions (with -versions)
+        Replace   *Module      // replaced by this module
+        Time      *time.Time   // time version was created
+        Update    *Module      // available update, if any (with -u)
+        Main      bool         // is this the main module?
+        Indirect  bool         // is this module only an indirect dependency of main module?
+        Dir       string       // directory holding files for this module, if any
+        GoMod     string       // path to go.mod file used when loading this module, if any
+        GoVersion string       // go version used in module
+        Error     *ModuleError // error loading module
     }
 
     type ModuleError struct {
         Err string // the error itself
     }
+
+The file GoMod refers to may be outside the module directory if the
+module is in the module cache or if the -modfile flag is used.
 
 The default output is to print the module path and then
 information about the version and replacement if any.
@@ -286,7 +290,7 @@ For more about modules, see 'go help modules'.
 
 func init() {
 	CmdList.Run = runList // break init cycle
-	work.AddBuildFlags(CmdList)
+	work.AddBuildFlags(CmdList, work.DefaultBuildFlags)
 }
 
 var (
@@ -383,13 +387,38 @@ func runList(cmd *base.Command, args []string) {
 		if modload.Init(); !modload.Enabled() {
 			base.Fatalf("go list -m: not using modules")
 		}
+
+		modload.InitMod() // Parses go.mod and sets cfg.BuildMod.
+		if cfg.BuildMod == "vendor" {
+			const actionDisabledFormat = "go list -m: can't %s using the vendor directory\n\t(Use -mod=mod or -mod=readonly to bypass.)"
+
+			if *listVersions {
+				base.Fatalf(actionDisabledFormat, "determine available versions")
+			}
+			if *listU {
+				base.Fatalf(actionDisabledFormat, "determine available upgrades")
+			}
+
+			for _, arg := range args {
+				// In vendor mode, the module graph is incomplete: it contains only the
+				// explicit module dependencies and the modules that supply packages in
+				// the import graph. Reject queries that imply more information than that.
+				if arg == "all" {
+					base.Fatalf(actionDisabledFormat, "compute 'all'")
+				}
+				if strings.Contains(arg, "...") {
+					base.Fatalf(actionDisabledFormat, "match module patterns")
+				}
+			}
+		}
+
 		modload.LoadBuildList()
 
 		mods := modload.ListModules(args, *listU, *listVersions)
 		if !*listE {
 			for _, m := range mods {
 				if m.Error != nil {
-					base.Errorf("go list -m %s: %v", m.Path, m.Error.Err)
+					base.Errorf("go list -m: %v", m.Error.Err)
 				}
 			}
 			base.ExitIfErrors()
@@ -446,37 +475,34 @@ func runList(cmd *base.Command, args []string) {
 				continue
 			}
 			if len(p.TestGoFiles)+len(p.XTestGoFiles) > 0 {
-				pmain, ptest, pxtest, err := load.GetTestPackagesFor(p, nil)
-				if err != nil {
-					if *listE {
-						pkgs = append(pkgs, &load.Package{
-							PackagePublic: load.PackagePublic{
-								ImportPath: p.ImportPath + ".test",
-								Error:      &load.PackageError{Err: err.Error()},
-							},
-						})
-						continue
+				var pmain, ptest, pxtest *load.Package
+				var err error
+				if *listE {
+					pmain, ptest, pxtest = load.TestPackagesAndErrors(p, nil)
+				} else {
+					pmain, ptest, pxtest, err = load.TestPackagesFor(p, nil)
+					if err != nil {
+						base.Errorf("can't load test package: %s", err)
 					}
-					base.Errorf("can't load test package: %s", err)
-					continue
 				}
-				pkgs = append(pkgs, pmain)
-				if ptest != nil {
+				if pmain != nil {
+					pkgs = append(pkgs, pmain)
+					data := *pmain.Internal.TestmainGo
+					h := cache.NewHash("testmain")
+					h.Write([]byte("testmain\n"))
+					h.Write(data)
+					out, _, err := c.Put(h.Sum(), bytes.NewReader(data))
+					if err != nil {
+						base.Fatalf("%s", err)
+					}
+					pmain.GoFiles[0] = c.OutputFile(out)
+				}
+				if ptest != nil && ptest != p {
 					pkgs = append(pkgs, ptest)
 				}
 				if pxtest != nil {
 					pkgs = append(pkgs, pxtest)
 				}
-
-				data := *pmain.Internal.TestmainGo
-				h := cache.NewHash("testmain")
-				h.Write([]byte("testmain\n"))
-				h.Write(data)
-				out, _, err := c.Put(h.Sum(), bytes.NewReader(data))
-				if err != nil {
-					base.Fatalf("%s", err)
-				}
-				pmain.GoFiles[0] = c.OutputFile(out)
 			}
 		}
 	}

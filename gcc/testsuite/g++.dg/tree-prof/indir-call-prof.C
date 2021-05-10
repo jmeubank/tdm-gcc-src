@@ -1,4 +1,4 @@
-/* { dg-options "-O2 -fdump-tree-optimized -fdump-ipa-profile -fdump-ipa-afdo" } */
+/* { dg-options "-O2 -fdump-tree-optimized -fdump-ipa-profile-optimized -fdump-ipa-afdo" } */
 
 struct A {
   A () {}
@@ -38,6 +38,6 @@ main (void)
   return 0;
 }
 
-/* { dg-final-use-not-autofdo { scan-ipa-dump "Indirect call -> direct call.* AA transformation on insn" "profile" } } */
-/* { dg-final-use-autofdo { scan-ipa-dump "Indirect call -> direct call.* AA transformation on insn" "afdo" } } */
+/* { dg-final-use-not-autofdo { scan-ipa-dump "Indirect call -> direct call.* AA .will resolve by ipa-profile" "profile" } } */
+/* { dg-final-use-autofdo { scan-ipa-dump "Indirect call -> direct call.* AA .will resolve by ipa-profile" "afdo" } } */
 /* { dg-final-use-not-autofdo { scan-tree-dump-not "Invalid sum" "optimized" } } */

@@ -10,16 +10,16 @@ import (
 	"unsafe"
 )
 
-// For gccgo, use go:linkname to rename compiler-called functions to
-// themselves, so that the compiler will export them.
+// For gccgo, use go:linkname to export compiler-called functions.
 //
-//go:linkname selectgo runtime.selectgo
+//go:linkname selectgo
+//go:linkname block
 
 const debugSelect = false
 
 // scase.kind values.
 // Known to compiler.
-// Changes here must also be made in src/cmd/compile/internal/gc/select.go's walkselect.
+// Changes here must also be made in src/cmd/compile/internal/gc/select.go's walkselectcases.
 const (
 	caseNil = iota
 	caseRecv
@@ -70,6 +70,9 @@ func selunlock(scases []scase, lockorder []uint16) {
 }
 
 func selparkcommit(gp *g, _ unsafe.Pointer) bool {
+	// There are unlocked sudogs that point into gp's stack. Stack
+	// copying must lock the channels of those sudogs.
+	gp.activeStackChans = true
 	// This must not access gp's stack (see gopark). In
 	// particular, it must not access the *hselect. That's okay,
 	// because by the time this is called, gp.waiting has all
@@ -308,6 +311,7 @@ loop:
 	// wait for someone to wake us up
 	gp.param = nil
 	gopark(selparkcommit, nil, waitReasonSelect, traceEvGoBlockSelect, 1)
+	gp.activeStackChans = false
 
 	sellock(scases, lockorder)
 
@@ -458,8 +462,6 @@ sclose:
 }
 
 func (c *hchan) sortkey() uintptr {
-	// TODO(khr): if we have a moving garbage collector, we'll need to
-	// change this function.
 	return uintptr(unsafe.Pointer(c))
 }
 

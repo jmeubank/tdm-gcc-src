@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"flag"
 	"fmt"
+	"go/token"
 	"io"
 	"math"
 	"math/rand"
@@ -22,8 +23,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-	"unicode"
-	"unicode/utf8"
 	"unsafe"
 )
 
@@ -788,6 +787,12 @@ type Loopy interface{}
 
 var loop1, loop2 Loop
 var loopy1, loopy2 Loopy
+var cycleMap1, cycleMap2, cycleMap3 map[string]interface{}
+
+type structWithSelfPtr struct {
+	p *structWithSelfPtr
+	s string
+}
 
 func init() {
 	loop1 = &loop2
@@ -795,6 +800,13 @@ func init() {
 
 	loopy1 = &loopy2
 	loopy2 = &loopy1
+
+	cycleMap1 = map[string]interface{}{}
+	cycleMap1["cycle"] = cycleMap1
+	cycleMap2 = map[string]interface{}{}
+	cycleMap2["cycle"] = cycleMap2
+	cycleMap3 = map[string]interface{}{}
+	cycleMap3["different"] = cycleMap3
 }
 
 var deepEqualTests = []DeepEqualTest{
@@ -838,6 +850,7 @@ var deepEqualTests = []DeepEqualTest{
 	{[]float64{math.NaN()}, self{}, true},
 	{map[float64]float64{math.NaN(): 1}, map[float64]float64{1: 2}, false},
 	{map[float64]float64{math.NaN(): 1}, self{}, true},
+	{&structWithSelfPtr{p: &structWithSelfPtr{s: "a"}}, &structWithSelfPtr{p: &structWithSelfPtr{s: "b"}}, false},
 
 	// Nil vs empty: not the same.
 	{[]int{}, []int(nil), false},
@@ -861,6 +874,8 @@ var deepEqualTests = []DeepEqualTest{
 	{&loop1, &loop2, true},
 	{&loopy1, &loopy1, true},
 	{&loopy1, &loopy2, true},
+	{&cycleMap1, &cycleMap2, true},
+	{&cycleMap1, &cycleMap3, false},
 }
 
 func TestDeepEqual(t *testing.T) {
@@ -869,7 +884,7 @@ func TestDeepEqual(t *testing.T) {
 			test.b = test.a
 		}
 		if r := DeepEqual(test.a, test.b); r != test.eq {
-			t.Errorf("DeepEqual(%v, %v) = %v, want %v", test.a, test.b, r, test.eq)
+			t.Errorf("DeepEqual(%#v, %#v) = %v, want %v", test.a, test.b, r, test.eq)
 		}
 	}
 }
@@ -1059,6 +1074,113 @@ func TestIsNil(t *testing.T) {
 	Nil(fi, t)
 	fi.x = TestIsNil
 	NotNil(fi, t)
+}
+
+func TestIsZero(t *testing.T) {
+	for i, tt := range []struct {
+		x    interface{}
+		want bool
+	}{
+		// Booleans
+		{true, false},
+		{false, true},
+		// Numeric types
+		{int(0), true},
+		{int(1), false},
+		{int8(0), true},
+		{int8(1), false},
+		{int16(0), true},
+		{int16(1), false},
+		{int32(0), true},
+		{int32(1), false},
+		{int64(0), true},
+		{int64(1), false},
+		{uint(0), true},
+		{uint(1), false},
+		{uint8(0), true},
+		{uint8(1), false},
+		{uint16(0), true},
+		{uint16(1), false},
+		{uint32(0), true},
+		{uint32(1), false},
+		{uint64(0), true},
+		{uint64(1), false},
+		{float32(0), true},
+		{float32(1.2), false},
+		{float64(0), true},
+		{float64(1.2), false},
+		{math.Copysign(0, -1), false},
+		{complex64(0), true},
+		{complex64(1.2), false},
+		{complex128(0), true},
+		{complex128(1.2), false},
+		{complex(math.Copysign(0, -1), 0), false},
+		{complex(0, math.Copysign(0, -1)), false},
+		{complex(math.Copysign(0, -1), math.Copysign(0, -1)), false},
+		{uintptr(0), true},
+		{uintptr(128), false},
+		// Array
+		{Zero(TypeOf([5]string{})).Interface(), true},
+		{[5]string{"", "", "", "", ""}, true},
+		{[5]string{}, true},
+		{[5]string{"", "", "", "a", ""}, false},
+		// Chan
+		{(chan string)(nil), true},
+		{make(chan string), false},
+		{time.After(1), false},
+		// Func
+		{(func())(nil), true},
+		{New, false},
+		// Interface
+		{New(TypeOf(new(error)).Elem()).Elem(), true},
+		{(io.Reader)(strings.NewReader("")), false},
+		// Map
+		{(map[string]string)(nil), true},
+		{map[string]string{}, false},
+		{make(map[string]string), false},
+		// Ptr
+		{(*func())(nil), true},
+		{(*int)(nil), true},
+		{new(int), false},
+		// Slice
+		{[]string{}, false},
+		{([]string)(nil), true},
+		{make([]string, 0), false},
+		// Strings
+		{"", true},
+		{"not-zero", false},
+		// Structs
+		{T{}, true},
+		{T{123, 456.75, "hello", &_i}, false},
+		// UnsafePointer
+		{(unsafe.Pointer)(nil), true},
+		{(unsafe.Pointer)(new(int)), false},
+	} {
+		var x Value
+		if v, ok := tt.x.(Value); ok {
+			x = v
+		} else {
+			x = ValueOf(tt.x)
+		}
+
+		b := x.IsZero()
+		if b != tt.want {
+			t.Errorf("%d: IsZero((%s)(%+v)) = %t, want %t", i, x.Kind(), tt.x, b, tt.want)
+		}
+
+		if !Zero(TypeOf(tt.x)).IsZero() {
+			t.Errorf("%d: IsZero(Zero(TypeOf((%s)(%+v)))) is false", i, x.Kind(), tt.x)
+		}
+	}
+
+	func() {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("should panic for invalid value")
+			}
+		}()
+		(Value{}).IsZero()
+	}()
 }
 
 func TestInterfaceExtraction(t *testing.T) {
@@ -1831,6 +1953,91 @@ func TestMakeFuncVariadic(t *testing.T) {
 	}
 }
 
+// Dummy type that implements io.WriteCloser
+type WC struct {
+}
+
+func (w *WC) Write(p []byte) (n int, err error) {
+	return 0, nil
+}
+func (w *WC) Close() error {
+	return nil
+}
+
+func TestMakeFuncValidReturnAssignments(t *testing.T) {
+	// reflect.Values returned from the wrapped function should be assignment-converted
+	// to the types returned by the result of MakeFunc.
+
+	// Concrete types should be promotable to interfaces they implement.
+	var f func() error
+	f = MakeFunc(TypeOf(f), func([]Value) []Value {
+		return []Value{ValueOf(io.EOF)}
+	}).Interface().(func() error)
+	f()
+
+	// Super-interfaces should be promotable to simpler interfaces.
+	var g func() io.Writer
+	g = MakeFunc(TypeOf(g), func([]Value) []Value {
+		var w io.WriteCloser = &WC{}
+		return []Value{ValueOf(&w).Elem()}
+	}).Interface().(func() io.Writer)
+	g()
+
+	// Channels should be promotable to directional channels.
+	var h func() <-chan int
+	h = MakeFunc(TypeOf(h), func([]Value) []Value {
+		return []Value{ValueOf(make(chan int))}
+	}).Interface().(func() <-chan int)
+	h()
+
+	// Unnamed types should be promotable to named types.
+	type T struct{ a, b, c int }
+	var i func() T
+	i = MakeFunc(TypeOf(i), func([]Value) []Value {
+		return []Value{ValueOf(struct{ a, b, c int }{a: 1, b: 2, c: 3})}
+	}).Interface().(func() T)
+	i()
+}
+
+func TestMakeFuncInvalidReturnAssignments(t *testing.T) {
+	// Type doesn't implement the required interface.
+	shouldPanic(func() {
+		var f func() error
+		f = MakeFunc(TypeOf(f), func([]Value) []Value {
+			return []Value{ValueOf(int(7))}
+		}).Interface().(func() error)
+		f()
+	})
+	// Assigning to an interface with additional methods.
+	shouldPanic(func() {
+		var f func() io.ReadWriteCloser
+		f = MakeFunc(TypeOf(f), func([]Value) []Value {
+			var w io.WriteCloser = &WC{}
+			return []Value{ValueOf(&w).Elem()}
+		}).Interface().(func() io.ReadWriteCloser)
+		f()
+	})
+	// Directional channels can't be assigned to bidirectional ones.
+	shouldPanic(func() {
+		var f func() chan int
+		f = MakeFunc(TypeOf(f), func([]Value) []Value {
+			var c <-chan int = make(chan int)
+			return []Value{ValueOf(c)}
+		}).Interface().(func() chan int)
+		f()
+	})
+	// Two named types which are otherwise identical.
+	shouldPanic(func() {
+		type T struct{ a, b, c int }
+		type U struct{ a, b, c int }
+		var f func() T
+		f = MakeFunc(TypeOf(f), func([]Value) []Value {
+			return []Value{ValueOf(U{a: 1, b: 2, c: 3})}
+		}).Interface().(func() T)
+		f()
+	})
+}
+
 type Point struct {
 	x, y int
 }
@@ -1867,6 +2074,16 @@ func (p Point) TotalDist(points ...Point) int {
 
 	}
 	return tot
+}
+
+// This will be index 5.
+func (p *Point) Int64Method(x int64) int64 {
+	return x
+}
+
+// This will be index 6.
+func (p *Point) Int32Method(x int32) int32 {
+	return x
 }
 
 func TestMethod(t *testing.T) {
@@ -2077,6 +2294,17 @@ func TestMethodValue(t *testing.T) {
 	if i != 425 {
 		t.Errorf("Interface MethodByName returned %d; want 425", i)
 	}
+
+	// For issue #33628: method args are not stored at the right offset
+	// on amd64p32.
+	m64 := ValueOf(&p).MethodByName("Int64Method").Interface().(func(int64) int64)
+	if x := m64(123); x != 123 {
+		t.Errorf("Int64Method returned %d; want 123", x)
+	}
+	m32 := ValueOf(&p).MethodByName("Int32Method").Interface().(func(int32) int32)
+	if x := m32(456); x != 456 {
+		t.Errorf("Int32Method returned %d; want 456", x)
+	}
 }
 
 func TestVariadicMethodValue(t *testing.T) {
@@ -2084,8 +2312,14 @@ func TestVariadicMethodValue(t *testing.T) {
 	points := []Point{{20, 21}, {22, 23}, {24, 25}}
 	want := int64(p.TotalDist(points[0], points[1], points[2]))
 
+	// Variadic method of type.
+	tfunc := TypeOf((func(Point, ...Point) int)(nil))
+	if tt := TypeOf(p).Method(4).Type; tt != tfunc {
+		t.Errorf("Variadic Method Type from TypeOf is %s; want %s", tt, tfunc)
+	}
+
 	// Curried method of value.
-	tfunc := TypeOf((func(...Point) int)(nil))
+	tfunc = TypeOf((func(...Point) int)(nil))
 	v := ValueOf(p).Method(4)
 	if tt := v.Type(); tt != tfunc {
 		t.Errorf("Variadic Method Type is %s; want %s", tt, tfunc)
@@ -2107,6 +2341,39 @@ func TestVariadicMethodValue(t *testing.T) {
 	i = int64(f(points...))
 	if i != want {
 		t.Errorf("Variadic Method Interface Slice returned %d; want %d", i, want)
+	}
+}
+
+type DirectIfaceT struct {
+	p *int
+}
+
+func (d DirectIfaceT) M() int { return *d.p }
+
+func TestDirectIfaceMethod(t *testing.T) {
+	x := 42
+	v := DirectIfaceT{&x}
+	typ := TypeOf(v)
+	m, ok := typ.MethodByName("M")
+	if !ok {
+		t.Fatalf("cannot find method M")
+	}
+	in := []Value{ValueOf(v)}
+	out := m.Func.Call(in)
+	if got := out[0].Int(); got != 42 {
+		t.Errorf("Call with value receiver got %d, want 42", got)
+	}
+
+	pv := &v
+	typ = TypeOf(pv)
+	m, ok = typ.MethodByName("M")
+	if !ok {
+		t.Fatalf("cannot find method M")
+	}
+	in = []Value{ValueOf(pv)}
+	out = m.Func.Call(in)
+	if got := out[0].Int(); got != 42 {
+		t.Errorf("Call with pointer receiver got %d, want 42", got)
 	}
 }
 
@@ -3389,6 +3656,13 @@ type MyRunes []int32
 type MyFunc func()
 type MyByte byte
 
+type IntChan chan int
+type IntChanRecv <-chan int
+type IntChanSend chan<- int
+type BytesChan chan []byte
+type BytesChanRecv <-chan []byte
+type BytesChanSend chan<- []byte
+
 var convertTests = []struct {
 	in  Value
 	out Value
@@ -3750,10 +4024,6 @@ var convertTests = []struct {
 	{V((***byte)(nil)), V((***byte)(nil))},
 	{V((***int32)(nil)), V((***int32)(nil))},
 	{V((***int64)(nil)), V((***int64)(nil))},
-	{V((chan int)(nil)), V((<-chan int)(nil))},
-	{V((chan int)(nil)), V((chan<- int)(nil))},
-	{V((chan string)(nil)), V((<-chan string)(nil))},
-	{V((chan string)(nil)), V((chan<- string)(nil))},
 	{V((chan byte)(nil)), V((chan byte)(nil))},
 	{V((chan MyByte)(nil)), V((chan MyByte)(nil))},
 	{V((map[int]bool)(nil)), V((map[int]bool)(nil))},
@@ -3764,6 +4034,40 @@ var convertTests = []struct {
 	{V(new(interface{})), V(new(interface{}))},
 	{V(new(io.Reader)), V(new(io.Reader))},
 	{V(new(io.Writer)), V(new(io.Writer))},
+
+	// channels
+	{V(IntChan(nil)), V((chan<- int)(nil))},
+	{V(IntChan(nil)), V((<-chan int)(nil))},
+	{V((chan int)(nil)), V(IntChanRecv(nil))},
+	{V((chan int)(nil)), V(IntChanSend(nil))},
+	{V(IntChanRecv(nil)), V((<-chan int)(nil))},
+	{V((<-chan int)(nil)), V(IntChanRecv(nil))},
+	{V(IntChanSend(nil)), V((chan<- int)(nil))},
+	{V((chan<- int)(nil)), V(IntChanSend(nil))},
+	{V(IntChan(nil)), V((chan int)(nil))},
+	{V((chan int)(nil)), V(IntChan(nil))},
+	{V((chan int)(nil)), V((<-chan int)(nil))},
+	{V((chan int)(nil)), V((chan<- int)(nil))},
+	{V(BytesChan(nil)), V((chan<- []byte)(nil))},
+	{V(BytesChan(nil)), V((<-chan []byte)(nil))},
+	{V((chan []byte)(nil)), V(BytesChanRecv(nil))},
+	{V((chan []byte)(nil)), V(BytesChanSend(nil))},
+	{V(BytesChanRecv(nil)), V((<-chan []byte)(nil))},
+	{V((<-chan []byte)(nil)), V(BytesChanRecv(nil))},
+	{V(BytesChanSend(nil)), V((chan<- []byte)(nil))},
+	{V((chan<- []byte)(nil)), V(BytesChanSend(nil))},
+	{V(BytesChan(nil)), V((chan []byte)(nil))},
+	{V((chan []byte)(nil)), V(BytesChan(nil))},
+	{V((chan []byte)(nil)), V((<-chan []byte)(nil))},
+	{V((chan []byte)(nil)), V((chan<- []byte)(nil))},
+
+	// cannot convert other instances (channels)
+	{V(IntChan(nil)), V(IntChan(nil))},
+	{V(IntChanRecv(nil)), V(IntChanRecv(nil))},
+	{V(IntChanSend(nil)), V(IntChanSend(nil))},
+	{V(BytesChan(nil)), V(BytesChan(nil))},
+	{V(BytesChanRecv(nil)), V(BytesChanRecv(nil))},
+	{V(BytesChanSend(nil)), V(BytesChanSend(nil))},
 
 	// interfaces
 	{V(int(1)), EmptyInterfaceV(int(1))},
@@ -4136,7 +4440,6 @@ func TestArrayOfGenericAlg(t *testing.T) {
 }
 
 func TestArrayOfDirectIface(t *testing.T) {
-	t.Skip("skipping test because gccgo uses a different directiface value")
 	{
 		type T [1]*byte
 		i1 := Zero(TypeOf(T{})).Interface()
@@ -4250,37 +4553,37 @@ func TestStructOfFieldName(t *testing.T) {
 	// invalid field name "1nvalid"
 	shouldPanic(func() {
 		StructOf([]StructField{
-			StructField{Name: "valid", Type: TypeOf("")},
-			StructField{Name: "1nvalid", Type: TypeOf("")},
+			{Name: "valid", Type: TypeOf("")},
+			{Name: "1nvalid", Type: TypeOf("")},
 		})
 	})
 
 	// invalid field name "+"
 	shouldPanic(func() {
 		StructOf([]StructField{
-			StructField{Name: "val1d", Type: TypeOf("")},
-			StructField{Name: "+", Type: TypeOf("")},
+			{Name: "val1d", Type: TypeOf("")},
+			{Name: "+", Type: TypeOf("")},
 		})
 	})
 
 	// no field name
 	shouldPanic(func() {
 		StructOf([]StructField{
-			StructField{Name: "", Type: TypeOf("")},
+			{Name: "", Type: TypeOf("")},
 		})
 	})
 
 	// verify creation of a struct with valid struct fields
 	validFields := []StructField{
-		StructField{
+		{
 			Name: "φ",
 			Type: TypeOf(""),
 		},
-		StructField{
+		{
 			Name: "ValidName",
 			Type: TypeOf(""),
 		},
-		StructField{
+		{
 			Name: "Val1dNam5",
 			Type: TypeOf(""),
 		},
@@ -4297,21 +4600,21 @@ func TestStructOfFieldName(t *testing.T) {
 func TestStructOf(t *testing.T) {
 	// check construction and use of type not in binary
 	fields := []StructField{
-		StructField{
+		{
 			Name: "S",
 			Tag:  "s",
 			Type: TypeOf(""),
 		},
-		StructField{
+		{
 			Name: "X",
 			Tag:  "x",
 			Type: TypeOf(byte(0)),
 		},
-		StructField{
+		{
 			Name: "Y",
 			Type: TypeOf(uint64(0)),
 		},
-		StructField{
+		{
 			Name: "Z",
 			Type: TypeOf([3]uint16{}),
 		},
@@ -4394,20 +4697,20 @@ func TestStructOf(t *testing.T) {
 	// check duplicate names
 	shouldPanic(func() {
 		StructOf([]StructField{
-			StructField{Name: "string", Type: TypeOf("")},
-			StructField{Name: "string", Type: TypeOf("")},
+			{Name: "string", Type: TypeOf("")},
+			{Name: "string", Type: TypeOf("")},
 		})
 	})
 	shouldPanic(func() {
 		StructOf([]StructField{
-			StructField{Type: TypeOf("")},
-			StructField{Name: "string", Type: TypeOf("")},
+			{Type: TypeOf("")},
+			{Name: "string", Type: TypeOf("")},
 		})
 	})
 	shouldPanic(func() {
 		StructOf([]StructField{
-			StructField{Type: TypeOf("")},
-			StructField{Type: TypeOf("")},
+			{Type: TypeOf("")},
+			{Type: TypeOf("")},
 		})
 	})
 	// check that type already in binary is found
@@ -4417,7 +4720,7 @@ func TestStructOf(t *testing.T) {
 	type structFieldType interface{}
 	checkSameType(t,
 		StructOf([]StructField{
-			StructField{
+			{
 				Name: "F",
 				Type: TypeOf((*structFieldType)(nil)).Elem(),
 			},
@@ -4490,17 +4793,14 @@ func TestStructOfExportRules(t *testing.T) {
 			mustPanic: true,
 		},
 		{
-			field:     StructField{Name: "s2", Type: TypeOf(int(0)), PkgPath: "other/pkg"},
-			mustPanic: true,
+			field: StructField{Name: "s2", Type: TypeOf(int(0)), PkgPath: "other/pkg"},
 		},
 		{
-			field:     StructField{Name: "s2", Type: TypeOf(int(0)), PkgPath: "other/pkg"},
-			mustPanic: true,
+			field: StructField{Name: "s2", Type: TypeOf(int(0)), PkgPath: "other/pkg"},
 		},
 		{
-			field:     StructField{Name: "S", Type: TypeOf(S1{})},
-			mustPanic: false,
-			exported:  true,
+			field:    StructField{Name: "S", Type: TypeOf(S1{})},
+			exported: true,
 		},
 		{
 			field:    StructField{Name: "S", Type: TypeOf((*S1)(nil))},
@@ -4531,20 +4831,16 @@ func TestStructOfExportRules(t *testing.T) {
 			mustPanic: true,
 		},
 		{
-			field:     StructField{Name: "s", Type: TypeOf(S1{}), PkgPath: "other/pkg"},
-			mustPanic: true, // TODO(sbinet): creating a name with a package path
+			field: StructField{Name: "s", Type: TypeOf(S1{}), PkgPath: "other/pkg"},
 		},
 		{
-			field:     StructField{Name: "s", Type: TypeOf((*S1)(nil)), PkgPath: "other/pkg"},
-			mustPanic: true, // TODO(sbinet): creating a name with a package path
+			field: StructField{Name: "s", Type: TypeOf((*S1)(nil)), PkgPath: "other/pkg"},
 		},
 		{
-			field:     StructField{Name: "s", Type: TypeOf(s2{}), PkgPath: "other/pkg"},
-			mustPanic: true, // TODO(sbinet): creating a name with a package path
+			field: StructField{Name: "s", Type: TypeOf(s2{}), PkgPath: "other/pkg"},
 		},
 		{
-			field:     StructField{Name: "s", Type: TypeOf((*s2)(nil)), PkgPath: "other/pkg"},
-			mustPanic: true, // TODO(sbinet): creating a name with a package path
+			field: StructField{Name: "s", Type: TypeOf((*s2)(nil)), PkgPath: "other/pkg"},
 		},
 		{
 			field:     StructField{Name: "", Type: TypeOf(ΦType{})},
@@ -4576,20 +4872,15 @@ func TestStructOfExportRules(t *testing.T) {
 			if n == "" {
 				panic("field.Name must not be empty")
 			}
-			exported := isExported(n)
+			exported := token.IsExported(n)
 			if exported != test.exported {
 				t.Errorf("test-%d: got exported=%v want exported=%v", i, exported, test.exported)
 			}
+			if field.PkgPath != test.field.PkgPath {
+				t.Errorf("test-%d: got PkgPath=%q want pkgPath=%q", i, field.PkgPath, test.field.PkgPath)
+			}
 		})
 	}
-}
-
-// isExported reports whether name is an exported Go symbol
-// (that is, whether it begins with an upper-case letter).
-//
-func isExported(name string) bool {
-	ch, _ := utf8.DecodeRuneInString(name)
-	return unicode.IsUpper(ch)
 }
 
 func TestStructOfGC(t *testing.T) {
@@ -4775,9 +5066,6 @@ func TestStructOfGenericAlg(t *testing.T) {
 	}
 }
 
-/*
-gccgo does not use the same directiface settings as gc.
-
 func TestStructOfDirectIface(t *testing.T) {
 	{
 		type T struct{ X [1]*byte }
@@ -4826,7 +5114,6 @@ func TestStructOfDirectIface(t *testing.T) {
 		}
 	}
 }
-*/
 
 type StructI int
 
@@ -5053,6 +5340,24 @@ func TestStructOfTooManyFields(t *testing.T) {
 	if _, present := tt.MethodByName("After"); !present {
 		t.Errorf("Expected method `After` to be found")
 	}
+}
+
+func TestStructOfDifferentPkgPath(t *testing.T) {
+	fields := []StructField{
+		{
+			Name:    "f1",
+			PkgPath: "p1",
+			Type:    TypeOf(int(0)),
+		},
+		{
+			Name:    "f2",
+			PkgPath: "p2",
+			Type:    TypeOf(int(0)),
+		},
+	}
+	shouldPanic(func() {
+		StructOf(fields)
+	})
 }
 
 func TestChanOf(t *testing.T) {
@@ -5888,9 +6193,6 @@ var funcLayoutTests []funcLayoutTest
 
 func init() {
 	var argAlign uintptr = PtrSize
-	if runtime.GOARCH == "amd64p32" {
-		argAlign = 2 * PtrSize
-	}
 	roundup := func(x uintptr, a uintptr) uintptr {
 		return (x + a - 1) / a * a
 	}
@@ -6203,7 +6505,7 @@ func TestGCBits(t *testing.T) {
 		join(hdr, rep(8, lit(0, 1)), rep(8, lit(1)), lit(1)))
 	verifyMapBucket(t, Tint64, Tptr,
 		map[int64]Xptr(nil),
-		join(hdr, rep(8, rep(8/PtrSize, lit(0))), rep(8, lit(1)), naclpad(), lit(1)))
+		join(hdr, rep(8, rep(8/PtrSize, lit(0))), rep(8, lit(1)), lit(1)))
 	verifyMapBucket(t,
 		Tscalar, Tscalar,
 		map[Xscalar]Xscalar(nil),
@@ -6228,13 +6530,6 @@ func TestGCBits(t *testing.T) {
 		ArrayOf(64/PtrSize+1, Tscalarptr), ArrayOf(64/PtrSize+1, Tptrscalar),
 		map[[64/PtrSize + 1]Xscalarptr][64/PtrSize + 1]Xptrscalar(nil),
 		join(hdr, rep(8, lit(1)), rep(8, lit(1)), lit(1)))
-}
-
-func naclpad() []byte {
-	if runtime.GOARCH == "amd64p32" {
-		return lit(0)
-	}
-	return nil
 }
 
 func rep(n int, b []byte) []byte { return bytes.Repeat(b, n) }

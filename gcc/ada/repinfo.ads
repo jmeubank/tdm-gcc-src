@@ -35,6 +35,9 @@
 --  compiler and in ASIS (it is used in ASIS as part of the implementation
 --  of the Data Decomposition Annex).
 
+--  WARNING: There is a C version of this package. Any changes to this
+--  source file must be properly reflected in the C header file repinfo.h
+
 with Types; use Types;
 with Uintp; use Uintp;
 
@@ -193,7 +196,7 @@ package Repinfo is
    --  following description, the terminology is that of the JSON syntax
    --  from the ECMA document and of the JSON grammar from www.json.org.
 
-   --  The output is a concatenation of entities
+   --  The output is an array of entities
 
    --  An entity is an object whose members are pairs taken from:
 

@@ -105,6 +105,7 @@ am__aclocal_m4_deps = $(top_srcdir)/../config/acx.m4 \
 	$(top_srcdir)/../config/no-executables.m4 \
 	$(top_srcdir)/../config/override.m4 \
 	$(top_srcdir)/../config/stdint.m4 \
+	$(top_srcdir)/../config/toolexeclibdir.m4 \
 	$(top_srcdir)/../config/unwind_ipinfo.m4 \
 	$(top_srcdir)/../libtool.m4 $(top_srcdir)/../ltoptions.m4 \
 	$(top_srcdir)/../ltsugar.m4 $(top_srcdir)/../ltversion.m4 \
@@ -499,43 +500,18 @@ cxx11_sources = \
 
 libstdc___la_SOURCES = $(cxx98_sources) $(cxx11_sources)
 libstdc___la_LIBADD = \
-	$(GLIBCXX_LIBS)
-libstdc___la_LIBADD_STATIC = \
+	$(GLIBCXX_LIBS) \
 	$(top_builddir)/libsupc++/libsupc++convenience.la \
 	$(top_builddir)/src/c++98/libc++98convenience.la \
 	$(top_builddir)/src/c++11/libc++11convenience.la \
 	$(top_builddir)/src/c++17/libc++17convenience.la
-libstdc___la_LIBADD_SHARED = \
-	$(top_builddir)/libsupc++-shared/libsupc++convenience.la \
-	$(top_builddir)/src/c++98-shared/libc++98convenience.la \
-	$(top_builddir)/src/c++11-shared/libc++11convenience.la \
-	$(top_builddir)/src/c++17-shared/libc++17convenience.la
 
 libstdc___la_DEPENDENCIES = \
-	${version_dep}
-libstdc___la_DEPENDENCIES_STATIC = \
+	${version_dep} \
 	$(top_builddir)/libsupc++/libsupc++convenience.la \
 	$(top_builddir)/src/c++98/libc++98convenience.la \
 	$(top_builddir)/src/c++11/libc++11convenience.la \
 	$(top_builddir)/src/c++17/libc++17convenience.la
-libstdc___la_DEPENDENCIES_SHARED = \
-	$(top_builddir)/libsupc++-shared/libsupc++convenience.la \
-	$(top_builddir)/src/c++98-shared/libc++98convenience.la \
-	$(top_builddir)/src/c++11-shared/libc++11convenience.la \
-	$(top_builddir)/src/c++17-shared/libc++17convenience.la
-
-$(top_builddir)/libsupc++-shared/libsupc++convenience.la: $(top_builddir)/libsupc++/libsupc++convenience.la
-	mkdir -p -- "$(top_builddir)/libsupc++-shared"
-	$(MAKE) -f $(top_builddir)/libsupc++/Makefile -C $(top_builddir)/libsupc++-shared CFLAGS="$(CFLAGS) -DSHARED" CXXFLAGS="$(CXXFLAGS) -DSHARED"
-$(top_builddir)/src/c++98-shared/libc++98convenience.la: $(top_builddir)/src/c++98/libc++98convenience.la
-	mkdir -p -- "$(top_builddir)/src/c++98-shared"
-	$(MAKE) -f ../$(top_builddir)/src/c++98/Makefile -C $(top_builddir)/src/c++98-shared CFLAGS="$(CFLAGS) -DSHARED" CXXFLAGS="$(CXXFLAGS) -DSHARED"
-$(top_builddir)/src/c++11-shared/libc++11convenience.la: $(top_builddir)/src/c++11/libc++11convenience.la
-	mkdir -p -- "$(top_builddir)/src/c++11-shared"
-	$(MAKE) -f ../$(top_builddir)/src/c++11/Makefile -C $(top_builddir)/src/c++11-shared CFLAGS="$(CFLAGS) -DSHARED" CXXFLAGS="$(CXXFLAGS) -DSHARED"
-$(top_builddir)/src/c++17-shared/libc++17convenience.la: $(top_builddir)/src/c++17/libc++17convenience.la
-	mkdir -p -- "$(top_builddir)/src/c++17-shared"
-	$(MAKE) -f ../$(top_builddir)/src/c++17/Makefile -C $(top_builddir)/src/c++17-shared CFLAGS="$(CFLAGS) -DSHARED" CXXFLAGS="$(CXXFLAGS) -DSHARED"
 
 libstdc___la_LDFLAGS = \
 	-version-info $(libtool_VERSION) ${version_arg} -lm
@@ -616,14 +592,12 @@ LTLDFLAGS = $(shell $(SHELL) $(top_srcdir)/../libtool-ldflags $(LDFLAGS))
 # course is problematic at this point.  So, we get the top-level
 # directory to configure libstdc++-v3 to use gcc as the C++
 # compilation driver.
-MAYBE64 = $(if $(findstring x86_64,$(host_triplet)),$(if $(MULTISUBDIR),,_64),$(if $(findstring /64,$(MULTISUBDIR)),_64))
-TARGET_MAYBE64 = $(patsubst %.la,%$(MAYBE64).la,$@)
 CXXLINK = \
 	$(LIBTOOL) --tag CXX \
 	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CXX) \
 	$(VTV_CXXLINKFLAGS) \
-	$(OPT_LDFLAGS) $(SECTION_LDFLAGS) $(AM_CXXFLAGS) $(LTLDFLAGS) -o $(TARGET_MAYBE64)
+	$(OPT_LDFLAGS) $(SECTION_LDFLAGS) $(AM_CXXFLAGS) $(LTLDFLAGS) -o $@
 
 @ENABLE_SYMVERS_TRUE@CLEANFILES = libstdc++-symbols.ver $(version_dep)
 @ENABLE_SYMVERS_DARWIN_TRUE@@ENABLE_SYMVERS_TRUE@version_arg = -Wl,-exported_symbols_list,libstdc++-symbols.explist
@@ -720,19 +694,8 @@ clean-toolexeclibLTLIBRARIES:
 	  rm -f $${locs}; \
 	}
 
-libstdc++.la: $(libstdc___la_OBJECTS) $(libstdc___la_DEPENDENCIES) $(EXTRA_libstdc___la_DEPENDENCIES) $(libstdc___la_DEPENDENCIES_STATIC) $(libstdc___la_DEPENDENCIES_SHARED)
-	$(LIBTOOL) --tag CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link \
-	  $(CXX) $(OPT_LDFLAGS) $(SECTION_LDFLAGS) -static $(AM_CXXFLAGS) $(LTLDFLAGS) -o $@ \
-	  $(libstdc___la_LDFLAGS) -rpath $(toolexeclibdir) $(libstdc___la_OBJECTS) $(libstdc___la_LIBADD) $(libstdc___la_LIBADD_STATIC) $(LIBS)
-	cp .libs/libstdc++.a libstdc++_noshared.a
-	$(libstdc___la_LINK) -rpath $(toolexeclibdir) $(libstdc___la_OBJECTS) $(libstdc___la_LIBADD) $(libstdc___la_LIBADD_SHARED) $(LIBS)
-	cp libstdc++_noshared.a .libs/libstdc++.a
-	rm -f "$@"
-	cat ".libs/$(TARGET_MAYBE64)" | sed 's/\(.*\)_64\(\.dll\)\?\.a/\1\2\.a/' >"$@"
-	cp -p "$@" ".libs/$@"
-	cp -p "$@" ".libs/$@i"
-	mv -f "$(patsubst %.la,%.dll.a,.libs/$(TARGET_MAYBE64))" tmp
-	mv -f tmp "$(patsubst %.la,%.dll.a,.libs/$@)"
+libstdc++.la: $(libstdc___la_OBJECTS) $(libstdc___la_DEPENDENCIES) $(EXTRA_libstdc___la_DEPENDENCIES) 
+	$(AM_V_GEN)$(libstdc___la_LINK) $(am_libstdc___la_rpath) $(libstdc___la_OBJECTS) $(libstdc___la_LIBADD) $(LIBS)
 
 libvtv.la: $(libvtv_la_OBJECTS) $(libvtv_la_DEPENDENCIES) $(EXTRA_libvtv_la_DEPENDENCIES) 
 	$(AM_V_GEN)$(libvtv_la_LINK) $(am_libvtv_la_rpath) $(libvtv_la_OBJECTS) $(libvtv_la_LIBADD) $(LIBS)
@@ -1113,7 +1076,7 @@ build-debug: stamp-debug
 	  mv Makefile Makefile.tmp; \
 	  sed -e 's,all-local: all-once,all-local:,' \
 	      -e 's,install-data-local: install-data-once,install-data-local:,' \
-	      -e '/vpath/!s,src/c,src/debug/c,g' \
+	      -e '/vpath/!s,src/c,src/debug/c,' \
 	  < Makefile.tmp > Makefile ; \
 	  rm -f Makefile.tmp ; \
 	  $(MAKE) CXXFLAGS='$(DEBUG_FLAGS)' \

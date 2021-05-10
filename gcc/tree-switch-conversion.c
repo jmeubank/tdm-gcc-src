@@ -1,6 +1,6 @@
 /* Lower GIMPLE_SWITCH expressions to something more efficient than
    a jump table.
-   Copyright (C) 2006-2019 Free Software Foundation, Inc.
+   Copyright (C) 2006-2020 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -36,7 +36,6 @@ Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
 #include "optabs-tree.h"
 #include "cgraph.h"
 #include "gimple-pretty-print.h"
-#include "params.h"
 #include "fold-const.h"
 #include "varasm.h"
 #include "stor-layout.h"
@@ -62,7 +61,7 @@ using namespace tree_switch_conversion;
 
 /* Constructor.  */
 
-switch_conversion::switch_conversion (): m_final_bb (NULL), m_other_count (),
+switch_conversion::switch_conversion (): m_final_bb (NULL),
   m_constructors (NULL), m_default_values (NULL),
   m_arr_ref_first (NULL), m_arr_ref_last (NULL),
   m_reason (NULL), m_default_case_nonstandard (false), m_cfg_altered (false)
@@ -90,10 +89,6 @@ switch_conversion::collect (gswitch *swtch)
   e_default = gimple_switch_default_edge (cfun, swtch);
   m_default_bb = e_default->dest;
   m_default_prob = e_default->probability;
-  m_default_count = e_default->count ();
-  FOR_EACH_EDGE (e, ei, m_switch_bb->succs)
-    if (e != e_default)
-      m_other_count += e->count ();
 
   /* Get upper and lower bounds of case values, and the covered range.  */
   min_case = gimple_switch_label (swtch, 1);
@@ -194,7 +189,7 @@ switch_conversion::check_range ()
     }
 
   if (tree_to_uhwi (m_range_size)
-      > ((unsigned) m_count * SWITCH_CONVERSION_BRANCH_RATIO))
+      > ((unsigned) m_count * param_switch_conversion_branch_ratio))
     {
       m_reason = "the maximum range-branch ratio exceeded";
       return false;
@@ -605,7 +600,9 @@ switch_conversion::build_one_array (int num, tree arr_index_type,
   vec<constructor_elt, va_gc> *constructor = m_constructors[num];
   wide_int coeff_a, coeff_b;
   bool linear_p = contains_linear_function_p (constructor, &coeff_a, &coeff_b);
-  if (linear_p)
+  tree type;
+  if (linear_p
+      && (type = range_check_type (TREE_TYPE ((*constructor)[0].value))))
     {
       if (dump_file && coeff_a.to_uhwi () > 0)
 	fprintf (dump_file, "Linear transformation with A = %" PRId64
@@ -613,13 +610,12 @@ switch_conversion::build_one_array (int num, tree arr_index_type,
 		 coeff_b.to_shwi ());
 
       /* We must use type of constructor values.  */
-      tree t = unsigned_type_for (TREE_TYPE ((*constructor)[0].value));
       gimple_seq seq = NULL;
-      tree tmp = gimple_convert (&seq, t, m_index_expr);
-      tree tmp2 = gimple_build (&seq, MULT_EXPR, t,
-				wide_int_to_tree (t, coeff_a), tmp);
-      tree tmp3 = gimple_build (&seq, PLUS_EXPR, t, tmp2,
-				wide_int_to_tree (t, coeff_b));
+      tree tmp = gimple_convert (&seq, type, m_index_expr);
+      tree tmp2 = gimple_build (&seq, MULT_EXPR, type,
+				wide_int_to_tree (type, coeff_a), tmp);
+      tree tmp3 = gimple_build (&seq, PLUS_EXPR, type, tmp2,
+				wide_int_to_tree (type, coeff_b));
       tree tmp4 = gimple_convert (&seq, TREE_TYPE (name), tmp3);
       gsi_insert_seq_before (&gsi, seq, GSI_SAME_STMT);
       load = gimple_build_assign (name, tmp4);
@@ -1119,7 +1115,8 @@ group_cluster::dump (FILE *f, bool details)
 
 void
 jump_table_cluster::emit (tree index_expr, tree,
-			  tree default_label_expr, basic_block default_bb)
+			  tree default_label_expr, basic_block default_bb,
+			  location_t loc)
 {
   unsigned HOST_WIDE_INT range = get_range (get_low (), get_high ());
   unsigned HOST_WIDE_INT nondefault_range = 0;
@@ -1138,6 +1135,7 @@ jump_table_cluster::emit (tree index_expr, tree,
 
   gswitch *s = gimple_build_switch (index_expr,
 				    unshare_expr (default_label_expr), labels);
+  gimple_set_location (s, loc);
   gimple_stmt_iterator gsi = gsi_start_bb (m_case_bb);
   gsi_insert_after (&gsi, s, GSI_NEW_STMT);
 
@@ -1213,14 +1211,14 @@ jump_table_cluster::find_jump_tables (vec<cluster *> &clusters)
     }
 
   /* No result.  */
-  if (min[l].m_count == INT_MAX)
+  if (min[l].m_count == l)
     return clusters.copy ();
 
   vec<cluster *> output;
   output.create (4);
 
   /* Find and build the clusters.  */
-  for (int end = l;;)
+  for (unsigned int end = l;;)
     {
       int start = min[end].m_start;
 
@@ -1257,22 +1255,34 @@ jump_table_cluster::can_be_handled (const vec<cluster *> &clusters,
      make a sequence of conditional branches instead of a dispatch.
 
      The definition of "much bigger" depends on whether we are
-     optimizing for size or for speed.  */
-  if (!flag_jump_tables)
-    return false;
+     optimizing for size or for speed.
 
-  /* For algorithm correctness, jump table for a single case must return
+     For algorithm correctness, jump table for a single case must return
      true.  We bail out in is_beneficial if it's called just for
      a single case.  */
   if (start == end)
     return true;
 
   unsigned HOST_WIDE_INT max_ratio
-    = optimize_insn_for_size_p () ? max_ratio_for_size : max_ratio_for_speed;
+    = (optimize_insn_for_size_p ()
+       ? param_jump_table_max_growth_ratio_for_size
+       : param_jump_table_max_growth_ratio_for_speed);
   unsigned HOST_WIDE_INT range = get_range (clusters[start]->get_low (),
 					    clusters[end]->get_high ());
   /* Check overflow.  */
   if (range == 0)
+    return false;
+
+  if (range > HOST_WIDE_INT_M1U / 100)
+    return false;
+
+  unsigned HOST_WIDE_INT lhs = 100 * range;
+  if (lhs < range)
+    return false;
+
+  /* First make quick guess as each cluster
+     can add at maximum 2 to the comparison_count.  */
+  if (lhs > 2 * max_ratio * (end - start + 1))
     return false;
 
   unsigned HOST_WIDE_INT comparison_count = 0;
@@ -1282,7 +1292,7 @@ jump_table_cluster::can_be_handled (const vec<cluster *> &clusters,
       comparison_count += sc->m_range_p ? 2 : 1;
     }
 
-  return range <= max_ratio * comparison_count;
+  return lhs <= max_ratio * comparison_count;
 }
 
 /* Return true if cluster starting at START and ending at END (inclusive)
@@ -1299,20 +1309,12 @@ jump_table_cluster::is_beneficial (const vec<cluster *> &,
   return end - start + 1 >= case_values_threshold ();
 }
 
-/* Definition of jump_table_cluster constants.  */
-
-const unsigned HOST_WIDE_INT jump_table_cluster::max_ratio_for_size;
-const unsigned HOST_WIDE_INT jump_table_cluster::max_ratio_for_speed;
-
 /* Find bit tests of given CLUSTERS, where all members of the vector
    are of type simple_cluster.  New clusters are returned.  */
 
 vec<cluster *>
 bit_test_cluster::find_bit_tests (vec<cluster *> &clusters)
 {
-  vec<cluster *> output;
-  output.create (4);
-
   unsigned l = clusters.length ();
   auto_vec<min_cluster_item> min;
   min.reserve (l + 1);
@@ -1335,8 +1337,11 @@ bit_test_cluster::find_bit_tests (vec<cluster *> &clusters)
     }
 
   /* No result.  */
-  if (min[l].m_count == INT_MAX)
+  if (min[l].m_count == l)
     return clusters.copy ();
+
+  vec<cluster *> output;
+  output.create (4);
 
   /* Find and build the clusters.  */
   for (unsigned end = l;;)
@@ -1350,7 +1355,7 @@ bit_test_cluster::find_bit_tests (vec<cluster *> &clusters)
 						  entire));
 	}
       else
-	for (int i = end - 1; i >=  start; i--)
+	for (int i = end - 1; i >= start; i--)
 	  output.safe_push (clusters[i]);
 
       end = start;
@@ -1372,12 +1377,12 @@ bit_test_cluster::can_be_handled (unsigned HOST_WIDE_INT range,
 {
   /* Check overflow.  */
   if (range == 0)
-    return 0;
+    return false;
 
   if (range >= GET_MODE_BITSIZE (word_mode))
     return false;
 
-  return uniq <= 3;
+  return uniq <= m_max_case_bit_tests;
 }
 
 /* Return true when cluster starting at START and ending at END (inclusive)
@@ -1387,6 +1392,7 @@ bool
 bit_test_cluster::can_be_handled (const vec<cluster *> &clusters,
 				  unsigned start, unsigned end)
 {
+  auto_vec<int, m_max_case_bit_tests> dest_bbs;
   /* For algorithm correctness, bit test for a single case must return
      true.  We bail out in is_beneficial if it's called just for
      a single case.  */
@@ -1395,15 +1401,25 @@ bit_test_cluster::can_be_handled (const vec<cluster *> &clusters,
 
   unsigned HOST_WIDE_INT range = get_range (clusters[start]->get_low (),
 					    clusters[end]->get_high ());
-  auto_bitmap dest_bbs;
+
+  /* Make a guess first.  */
+  if (!can_be_handled (range, m_max_case_bit_tests))
+    return false;
 
   for (unsigned i = start; i <= end; i++)
     {
       simple_cluster *sc = static_cast<simple_cluster *> (clusters[i]);
-      bitmap_set_bit (dest_bbs, sc->m_case_bb->index);
+      /* m_max_case_bit_tests is very small integer, thus the operation
+	 is constant. */
+      if (!dest_bbs.contains (sc->m_case_bb->index))
+	{
+	  if (dest_bbs.length () >= m_max_case_bit_tests)
+	    return false;
+	  dest_bbs.quick_push (sc->m_case_bb->index);
+	}
     }
 
-  return can_be_handled (range, bitmap_count_bits (dest_bbs));
+  return true;
 }
 
 /* Return true when COUNT of cases of UNIQ labels is beneficial for bit test
@@ -1447,8 +1463,8 @@ bit_test_cluster::is_beneficial (const vec<cluster *> &clusters,
 int
 case_bit_test::cmp (const void *p1, const void *p2)
 {
-  const struct case_bit_test *const d1 = (const struct case_bit_test *) p1;
-  const struct case_bit_test *const d2 = (const struct case_bit_test *) p2;
+  const case_bit_test *const d1 = (const case_bit_test *) p1;
+  const case_bit_test *const d2 = (const case_bit_test *) p2;
 
   if (d2->bits != d1->bits)
     return d2->bits - d1->bits;
@@ -1477,13 +1493,13 @@ case_bit_test::cmp (const void *p1, const void *p2)
 
 void
 bit_test_cluster::emit (tree index_expr, tree index_type,
-			tree, basic_block default_bb)
+			tree, basic_block default_bb, location_t)
 {
-  struct case_bit_test test[m_max_case_bit_tests] = { {} };
+  case_bit_test test[m_max_case_bit_tests] = { {} };
   unsigned int i, j, k;
   unsigned int count;
 
-  tree unsigned_index_type = unsigned_type_for (index_type);
+  tree unsigned_index_type = range_check_type (index_type);
 
   gimple_stmt_iterator gsi;
   gassign *shift_stmt;
@@ -1793,7 +1809,8 @@ switch_decision_tree::try_switch_expansion (vec<cluster *> &clusters)
   tree index_type = TREE_TYPE (index_expr);
   basic_block bb = gimple_bb (m_switch);
 
-  if (gimple_switch_num_labels (m_switch) == 1)
+  if (gimple_switch_num_labels (m_switch) == 1
+      || range_check_type (index_type) == NULL_TREE)
     return false;
 
   /* Find the default case target label.  */
@@ -1833,6 +1850,7 @@ switch_decision_tree::try_switch_expansion (vec<cluster *> &clusters)
     if (clusters[i]->get_type () != SIMPLE_CASE)
       {
 	clusters[i]->m_case_bb = create_empty_bb (bb);
+	clusters[i]->m_case_bb->count = bb->count;
 	clusters[i]->m_case_bb->loop_father = bb->loop_father;
       }
 
@@ -1842,7 +1860,8 @@ switch_decision_tree::try_switch_expansion (vec<cluster *> &clusters)
     {
       cluster *c = clusters[0];
       c->emit (index_expr, index_type,
-	       gimple_switch_default_label (m_switch), m_default_bb);
+	       gimple_switch_default_label (m_switch), m_default_bb,
+	       gimple_location (m_switch));
       redirect_edge_succ (single_succ_edge (bb), c->m_case_bb);
     }
   else
@@ -1854,7 +1873,7 @@ switch_decision_tree::try_switch_expansion (vec<cluster *> &clusters)
 	if (clusters[i]->get_type () != SIMPLE_CASE)
 	  clusters[i]->emit (index_expr, index_type,
 			     gimple_switch_default_label (m_switch),
-			     m_default_bb);
+			     m_default_bb, gimple_location (m_switch));
     }
 
   fix_phi_operands_for_edges ();

@@ -1,10 +1,62 @@
-2019-08-12  Release Manager
+2021-04-08  Release Manager
 
-	* GCC 9.2.0 released.
+	* GCC 10.3.0 released.
 
-2019-05-03  Release Manager
+2021-01-03  Iain Sandoe  <iain@sandoe.co.uk>
+	    Jakub Jelinek   <jakub@redhat.com>
 
-	* GCC 9.1.0 released.
+	PR target/97865
+	* configure: Regenerate.
+
+2020-09-24  Alan Modra  <amodra@gmail.com>
+
+	Backported from master:
+	2020-09-24  Alan Modra  <amodra@gmail.com>
+
+	PR target/97166
+	* src/powerpc/linux64.S (ffi_call_LINUX64): Don't emit global
+	entry when __PCREL__.  Call using @notoc.  Add nops.
+	* src/powerpc/linux64_closure.S (ffi_closure_LINUX64): Likewise.
+	(ffi_go_closure_linux64): Likewise.
+
+2020-07-23  Release Manager
+
+	* GCC 10.2.0 released.
+
+2020-05-07  Release Manager
+
+	* GCC 10.1.0 released.
+
+2020-04-25  Maciej W. Rozycki  <macro@wdc.com>
+
+	* Makefile.am (DISTCLEANFILES): New variable.
+	* configure.ac: Produce `local.exp'.
+	* Makefile.in: Regenerate.
+	* configure: Regenerate.
+	* testsuite/Makefile.am (EXTRA_DEJAGNU_SITE_CONFIG): New
+	variable.
+	* testsuite/Makefile.in: Regenerate.
+
+2020-01-24  Maciej W. Rozycki  <macro@wdc.com>
+
+	* configure.ac: Handle `--with-toolexeclibdir='.
+	* Makefile.in: Regenerate.
+	* aclocal.m4: Regenerate.
+	* configure: Regenerate.
+	* include/Makefile.in: Regenerate.
+	* man/Makefile.in: Regenerate.
+	* testsuite/Makefile.in: Regenerate.
+
+2019-09-27  Maciej W. Rozycki  <macro@wdc.com>
+
+	* configure: Regenerate.
+
+2019-09-03  Chung-Lin Tang  <cltang@codesourcery.com>
+
+	PR other/79543
+	* acinclude.m4 (LIBAT_CHECK_LINKER_FEATURES): Fix GNU ld --version
+	scanning to conform to the GNU Coding Standards.
+	* configure: Regenerate.
 
 2018-10-31  Joseph Myers  <joseph@codesourcery.com>
 

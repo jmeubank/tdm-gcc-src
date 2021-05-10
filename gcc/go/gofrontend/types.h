@@ -186,6 +186,22 @@ class Method
     this->stub_ = no;
   }
 
+  // Get the direct interface method stub object.
+  Named_object*
+  iface_stub_object() const
+  {
+    go_assert(this->iface_stub_ != NULL);
+    return this->iface_stub_;
+  }
+
+  // Set the direct interface method stub object.
+  void
+  set_iface_stub_object(Named_object* no)
+  {
+    go_assert(this->iface_stub_ == NULL);
+    this->iface_stub_ = no;
+  }
+
   // Return true if this method should not participate in any
   // interfaces.
   bool
@@ -196,7 +212,7 @@ class Method
   // These objects are only built by the child classes.
   Method(const Field_indexes* field_indexes, unsigned int depth,
 	 bool is_value_method, bool needs_stub_method)
-    : field_indexes_(field_indexes), depth_(depth), stub_(NULL),
+    : field_indexes_(field_indexes), depth_(depth), stub_(NULL), iface_stub_(NULL),
       is_value_method_(is_value_method), needs_stub_method_(needs_stub_method),
       is_ambiguous_(false)
   { }
@@ -230,6 +246,9 @@ class Method
   // If a stub method is required, this is its object.  This is only
   // set after stub methods are built in finalize_methods.
   Named_object* stub_;
+  // Stub object for direct interface type.  This is only set after
+  // stub methods are built in finalize_methods.
+  Named_object* iface_stub_;
   // Whether this is a value method--a method that does not require a
   // pointer.
   bool is_value_method_;
@@ -923,6 +942,11 @@ class Type
   is_unsafe_pointer_type() const
   { return this->points_to() != NULL && this->points_to()->is_void_type(); }
 
+  // Return whether this type is stored directly in an interface's
+  // data word.
+  bool
+  is_direct_iface_type() const;
+
   // Return a version of this type with any expressions copied, but
   // only if copying the expressions will affect the size of the type.
   // If there are no such expressions in the type (expressions can
@@ -1029,19 +1053,26 @@ class Type
   bool
   needs_specific_type_functions(Gogo*);
 
-  // Get the hash and equality functions for a type.
-  void
-  type_functions(Gogo*, Named_type* name, Function_type* hash_fntype,
-		 Function_type* equal_fntype, Named_object** hash_fn,
-		 Named_object** equal_fn);
+  // Get the equality function for a type.  Returns NULL if the type
+  // is not comparable.
+  Named_object*
+  equal_function(Gogo*, Named_type* name, Function_type* equal_fntype);
 
-  // Write the hash and equality type functions.
+  // Get the hash function for a type.  Returns NULL if the type is
+  // not comparable.
+  Named_object*
+  hash_function(Gogo*, Function_type* hash_fntype);
+
+  // Write the equal function for a type.
   void
-  write_specific_type_functions(Gogo*, Named_type*, int64_t size,
-				const std::string& hash_name,
-				Function_type* hash_fntype,
-				const std::string& equal_name,
-				Function_type* equal_fntype);
+  write_equal_function(Gogo*, Named_type*, int64_t size,
+		       const std::string& equal_name,
+		       Function_type* equal_fntype);
+
+  // Write the hash function for a type.
+  void
+  write_hash_function(Gogo*, int64_t size, const std::string& hash_name,
+		      Function_type* hash_fntype);
 
   // Return the alignment required by the memequalN function.
   static int64_t memequal_align(Gogo*, int size);
@@ -1250,23 +1281,20 @@ class Type
   Expression*
   gcprog_constructor(Gogo*, int64_t ptrsize, int64_t ptrdata);
 
-  // Build the hash and equality type functions for a type which needs
-  // specific functions.
-  void
-  specific_type_functions(Gogo*, Named_type*, int64_t size,
-			  Function_type* hash_fntype,
-			  Function_type* equal_fntype, Named_object** hash_fn,
-			  Named_object** equal_fn);
+  // Build the hash function for a type that needs specific functions.
+  Named_object*
+  build_hash_function(Gogo*, int64_t size, Function_type* hash_fntype);
+
+  // Build the equal function for a type that needs specific functions.
+  Named_object*
+  build_equal_function(Gogo*, Named_type*, int64_t size,
+		       Function_type* equal_fntype);
 
   void
   write_identity_hash(Gogo*, int64_t size);
 
   void
   write_identity_equal(Gogo*, int64_t size);
-
-  void
-  write_named_hash(Gogo*, Named_type*, Function_type* hash_fntype,
-		   Function_type* equal_fntype);
 
   void
   write_named_equal(Gogo*, Named_type*);
@@ -1321,6 +1349,15 @@ class Type
 			const Typed_identifier_list*, bool is_varargs,
 			Location);
 
+  // Build direct interface stub methods for a type.
+  static void
+  build_direct_iface_stub_methods(Gogo*, const Type*, Methods*, Location);
+
+  static void
+  build_one_iface_stub_method(Gogo*, Method*, const char*,
+                              const Typed_identifier_list*,
+                              bool, Location);
+
   static Expression*
   apply_field_indexes(Expression*, const Method::Field_indexes*,
 		      Location);
@@ -1332,6 +1369,11 @@ class Type
 		       std::vector<const Named_type*>*, int* level,
 		       bool* is_method, bool* found_pointer_method,
 		       std::string* ambig1, std::string* ambig2);
+
+  // Helper function for is_direct_iface_type, to prevent infinite
+  // recursion.
+  bool
+  is_direct_iface_type_helper(Unordered_set(const Type*)*) const;
 
   // Get the backend representation for a type without looking in the
   // hash table for identical types.
@@ -1356,13 +1398,13 @@ class Type
   // A list of builtin named types.
   static std::vector<Named_type*> named_builtin_types;
 
-  // A map from types which need specific type functions to the type
-  // functions themselves.
-  typedef std::pair<Named_object*, Named_object*> Hash_equal_fn;
-  typedef Unordered_map_hash(const Type*, Hash_equal_fn, Type_hash_identical,
-			     Type_identical) Type_functions;
+  // A map from types that need a specific hash or equality function
+  // to the hash or equality function.
+  typedef Unordered_map_hash(const Type*, Named_object*, Type_hash_identical,
+			     Type_identical) Type_function;
 
-  static Type_functions type_functions_table;
+  static Type_function type_hash_functions_table;
+  static Type_function type_equal_functions_table;
 
   // Cache for reusing existing pointer types; maps from pointed-to-type
   // to pointer type.
@@ -1371,7 +1413,7 @@ class Type
   static Pointer_type_table pointer_types;
 
   // List of placeholder pointer types.
-  static std::vector<Pointer_type*> placeholder_pointers;
+  static std::vector<Type*> placeholder_pointers;
 
   // The type classification.
   Type_classification classification_;
@@ -1456,7 +1498,12 @@ class Typed_identifier
   // Set the escape note.
   void
   set_note(const std::string& note)
-  { this->note_ = new std::string(note); }
+  {
+    if (this->note_ != NULL)
+      go_assert(*this->note_ == note);
+    else
+      this->note_ = new std::string(note);
+  }
 
  private:
   // Identifier name.
@@ -2576,7 +2623,7 @@ class Struct_type : public Type
 
   // Write the hash function for this type.
   void
-  write_hash_function(Gogo*, Named_type*, Function_type*, Function_type*);
+  write_hash_function(Gogo*, Function_type*);
 
   // Write the equality function for this type.
   void
@@ -2763,7 +2810,7 @@ class Array_type : public Type
 
   // Write the hash function for this type.
   void
-  write_hash_function(Gogo*, Named_type*, Function_type*, Function_type*);
+  write_hash_function(Gogo*, Function_type*);
 
   // Write the equality function for this type.
   void
@@ -2874,6 +2921,27 @@ class Map_type : public Type
   Expression*
   fat_zero_value(Gogo*);
 
+  // Map algorithm to use for this map type.  We may use specialized
+  // fast map routines for certain key types.
+  enum Map_alg
+    {
+      // 32-bit key.
+      MAP_ALG_FAST32,
+      // 32-bit pointer key.
+      MAP_ALG_FAST32PTR,
+      // 64-bit key.
+      MAP_ALG_FAST64,
+      // 64-bit pointer key.
+      MAP_ALG_FAST64PTR,
+      // String key.
+      MAP_ALG_FASTSTR,
+      // Anything else.
+      MAP_ALG_SLOW,
+    };
+
+  Map_alg
+  algorithm(Gogo*);
+
   // Return whether VAR is the map zero value.
   static bool
   is_zero_value(Variable* var);
@@ -2893,7 +2961,7 @@ class Map_type : public Type
   static Type*
   make_map_type_descriptor_type();
 
-  // This must be in  sync with libgo/go/runtime/hashmap.go.
+  // This must be in  sync with libgo/go/runtime/map.go.
   static const int bucket_size = 8;
 
  protected:
@@ -2936,7 +3004,7 @@ class Map_type : public Type
   do_export(Export*) const;
 
  private:
-  // These must be in sync with libgo/go/runtime/hashmap.go.
+  // These must be in sync with libgo/go/runtime/map.go.
   static const int max_key_size = 128;
   static const int max_val_size = 128;
   static const int max_zero_size = 1024;

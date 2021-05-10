@@ -1,5 +1,5 @@
 /* mingw32 host-specific hook definitions.
-   Copyright (C) 2004-2019 Free Software Foundation, Inc.
+   Copyright (C) 2004-2020 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -44,6 +44,9 @@ static size_t mingw32_gt_pch_alloc_granularity (void);
 
 static inline void w32_error(const char*, const char*, int, const char*);
 
+/* FIXME: Is this big enough?  */
+static const size_t pch_VA_max_size  = 128 * 1024 * 1024;
+
 /* Granularity for reserving address space.  */
 static size_t va_granularity = 0x10000;
 
@@ -85,6 +88,9 @@ static void *
 mingw32_gt_pch_get_address (size_t size, int)
 {
   void* res;
+  size = (size + va_granularity - 1) & ~(va_granularity - 1);
+  if (size > pch_VA_max_size)
+    return NULL;
 
   /* FIXME: We let system determine base by setting first arg to NULL.
      Allocating at top of available address space avoids unnecessary
@@ -94,7 +100,7 @@ mingw32_gt_pch_get_address (size_t size, int)
      If we allocate at bottom we need to reserve the address as early
      as possible and at the same point in each invocation. */
  
-  res = VirtualAlloc (NULL, size,
+  res = VirtualAlloc (NULL, pch_VA_max_size,
 		      MEM_RESERVE | MEM_TOP_DOWN,
 		      PAGE_NOACCESS);
   if (!res)
@@ -144,17 +150,17 @@ mingw32_gt_pch_use_address (void *addr, size_t size, int fd,
 
   /* Offset must be also be a multiple of allocation granularity for
      this to work.  We can't change the offset. */ 
-  if ((offset & (va_granularity - 1)) != 0)
+  if ((offset & (va_granularity - 1)) != 0 || size > pch_VA_max_size)
     return -1;
 
 
   /* Determine the version of Windows we are running on and use a
      uniquely-named local object if running > 4.  */
   GetVersionEx (&version_info);
+
+  char local_object_name[sizeof (OBJECT_NAME_FMT) + sizeof (DWORD) * 2];
   if (version_info.dwMajorVersion > 4)
     {
-      char local_object_name [sizeof (OBJECT_NAME_FMT)
-			      + sizeof (DWORD) * 2];
       snprintf (local_object_name, sizeof (local_object_name),
 		OBJECT_NAME_FMT "%lx", GetCurrentProcessId());
       object_name = local_object_name;

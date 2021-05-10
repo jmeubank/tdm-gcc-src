@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2019 Free Software Foundation, Inc.
+// Copyright (C) 2018-2020 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -197,7 +197,7 @@ test06()
     void do_deallocate(void* p, std::size_t bytes, std::size_t align)
     { std::pmr::new_delete_resource()->deallocate(p, bytes, align); }
 
-    bool do_is_equal(const memory_resource& r) const noexcept
+    bool do_is_equal(const memory_resource&) const noexcept
     { return false; }
   };
 
@@ -239,6 +239,25 @@ test06()
   }
 }
 
+void
+test08()
+{
+  std::pmr::pool_options opts;
+  opts.largest_required_pool_block = 64;
+
+  // PR libstdc++/94160
+  // max_blocks_per_chunk=1 causes pool resources to return null pointers
+  for (int i = 0; i < 8; ++i)
+  {
+    opts.max_blocks_per_chunk = i;
+    std::pmr::unsynchronized_pool_resource upr(opts);
+    auto* p = (int*)upr.allocate(4);
+    VERIFY( p != nullptr );
+    *p = i;
+    upr.deallocate(p, 4);
+  }
+}
+
 int
 main()
 {
@@ -248,4 +267,5 @@ main()
   test04();
   test05();
   test06();
+  test08();
 }

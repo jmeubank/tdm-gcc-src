@@ -694,69 +694,199 @@ package body Sem_Ch6 is
       R_Type : constant Entity_Id := Etype (Scope_Id);
       --  Function result subtype
 
-      procedure Check_Aggregate_Accessibility (Aggr : Node_Id);
-      --  Apply legality rule of 6.5 (5.8) to the access discriminants of an
+      procedure Check_Return_Obj_Accessibility (Return_Stmt : Node_Id);
+      --  Apply legality rule of 6.5 (5.9) to the access discriminants of an
       --  aggregate in a return statement.
 
       procedure Check_Return_Subtype_Indication (Obj_Decl : Node_Id);
       --  Check that the return_subtype_indication properly matches the result
       --  subtype of the function, as required by RM-6.5(5.1/2-5.3/2).
 
-      -----------------------------------
-      -- Check_Aggregate_Accessibility --
-      -----------------------------------
+      ------------------------------------
+      -- Check_Return_Obj_Accessibility --
+      ------------------------------------
 
-      procedure Check_Aggregate_Accessibility (Aggr : Node_Id) is
-         Typ   : constant Entity_Id := Etype (Aggr);
-         Assoc : Node_Id;
-         Discr : Entity_Id;
-         Expr  : Node_Id;
-         Obj   : Node_Id;
+      procedure Check_Return_Obj_Accessibility (Return_Stmt : Node_Id) is
+         Assoc         : Node_Id;
+         Agg           : Node_Id := Empty;
+         Discr         : Entity_Id;
+         Expr          : Node_Id;
+         Obj           : Node_Id;
+         Process_Exprs : Boolean := False;
+         Return_Obj    : Node_Id;
 
       begin
-         if Is_Record_Type (Typ) and then Has_Discriminants (Typ) then
-            Discr := First_Discriminant (Typ);
-            Assoc := First (Component_Associations (Aggr));
-            while Present (Discr) loop
-               if Ekind (Etype (Discr)) = E_Anonymous_Access_Type then
+         --  Only perform checks on record types with access discriminants
+
+         if not Is_Record_Type (R_Type)
+           or else not Has_Discriminants (R_Type)
+         then
+            return;
+         end if;
+
+         --  We are only interested in return statements
+
+         if not Nkind_In (Return_Stmt, N_Extended_Return_Statement,
+                                       N_Simple_Return_Statement)
+         then
+            return;
+         end if;
+
+         --  Fetch the object from the return statement, in the case of a
+         --  simple return statement the expression is part of the node.
+
+         if Nkind (Return_Stmt) = N_Extended_Return_Statement then
+            Return_Obj := Last (Return_Object_Declarations (Return_Stmt));
+
+            --  We could be looking at something that's been expanded with
+            --  an initialzation procedure which we can safely ignore.
+
+            if Nkind (Return_Obj) /= N_Object_Declaration then
+               return;
+            end if;
+         else
+            Return_Obj := Return_Stmt;
+         end if;
+
+         --  We may need to check an aggregate or a subtype indication
+         --  depending on how the discriminants were specified and whether
+         --  we are looking at an extended return statement.
+
+         if Nkind (Return_Obj) = N_Object_Declaration
+           and then Nkind (Object_Definition (Return_Obj))
+                      = N_Subtype_Indication
+         then
+            Assoc := First (Constraints
+                             (Constraint (Object_Definition (Return_Obj))));
+         else
+            --  Qualified expressions may be nested
+
+            Agg := Original_Node (Expression (Return_Obj));
+            while Nkind (Agg) = N_Qualified_Expression loop
+               Agg := Original_Node (Expression (Agg));
+            end loop;
+
+            --  If we are looking at an aggregate instead of a function call we
+            --  can continue checking accessibility for the supplied
+            --  discriminant associations.
+
+            if Nkind (Agg) = N_Aggregate then
+               if Present (Expressions (Agg)) then
+                  Assoc         := First (Expressions (Agg));
+                  Process_Exprs := True;
+               else
+                  Assoc := First (Component_Associations (Agg));
+               end if;
+
+            --  Otherwise the expression is not of interest ???
+
+            else
+               return;
+            end if;
+         end if;
+
+         --  Move through the discriminants checking the accessibility level
+         --  of each co-extension's associated expression.
+
+         Discr := First_Discriminant (R_Type);
+         while Present (Discr) loop
+            if Ekind (Etype (Discr)) = E_Anonymous_Access_Type then
+
+               if Nkind (Assoc) = N_Attribute_Reference then
+                  Expr := Assoc;
+               elsif Nkind_In (Assoc, N_Component_Association,
+                                      N_Discriminant_Association)
+               then
                   Expr := Expression (Assoc);
+               end if;
 
-                  if Nkind (Expr) = N_Attribute_Reference
-                    and then Attribute_Name (Expr) /= Name_Unrestricted_Access
-                  then
-                     Obj := Prefix (Expr);
-                     while Nkind_In (Obj, N_Indexed_Component,
-                                          N_Selected_Component)
-                     loop
-                        Obj := Prefix (Obj);
-                     end loop;
+               --  This anonymous access discriminant has an associated
+               --  expression which needs checking.
 
-                     --  Do not check aliased formals or function calls. A
-                     --  run-time check may still be needed ???
+               if Nkind (Expr) = N_Attribute_Reference
+                 and then Attribute_Name (Expr) /= Name_Unrestricted_Access
+               then
+                  --  Obtain the object to perform static checks on by moving
+                  --  up the prefixes in the expression taking into account
+                  --  named access types.
 
-                     if Is_Entity_Name (Obj)
-                       and then Comes_From_Source (Obj)
+                  Obj := Prefix (Expr);
+                  while Nkind_In (Obj, N_Indexed_Component,
+                                       N_Selected_Component)
+                  loop
+                     --  When we encounter a named access type then we can
+                     --  ignore accessibility checks on the dereference.
+
+                     if Ekind (Etype (Prefix (Obj)))
+                          in E_Access_Type ..
+                             E_Access_Protected_Subprogram_Type
                      then
-                        if Is_Formal (Entity (Obj))
-                           and then Is_Aliased (Entity (Obj))
-                        then
-                           null;
-
-                        elsif Object_Access_Level (Obj) >
-                                Scope_Depth (Scope (Scope_Id))
-                        then
-                           Error_Msg_N
-                             ("access discriminant in return aggregate would "
-                              & "be a dangling reference", Obj);
+                        if Nkind (Obj) = N_Selected_Component then
+                           Obj := Selector_Name (Obj);
                         end if;
+                        exit;
+                     end if;
+
+                     --  Skip over the explicit dereference
+
+                     if Nkind (Prefix (Obj)) = N_Explicit_Dereference then
+                        Obj := Prefix (Prefix (Obj));
+
+                     --  Otherwise move up to the next prefix
+
+                     else
+                        Obj := Prefix (Obj);
+                     end if;
+                  end loop;
+
+                  --  Do not check aliased formals or function calls. A
+                  --  run-time check may still be needed ???
+
+                  if Is_Entity_Name (Obj)
+                    and then Comes_From_Source (Obj)
+                  then
+                     --  Explicitly aliased formals are allowed
+
+                     if Is_Formal (Entity (Obj))
+                       and then Is_Aliased (Entity (Obj))
+                     then
+                        null;
+
+                     elsif Object_Access_Level (Obj) >
+                             Scope_Depth (Scope (Scope_Id))
+                     then
+                        Error_Msg_N
+                          ("access discriminant in return aggregate would "
+                           & "be a dangling reference", Obj);
                      end if;
                   end if;
                end if;
+            end if;
 
-               Next_Discriminant (Discr);
-            end loop;
-         end if;
-      end Check_Aggregate_Accessibility;
+            Next_Discriminant (Discr);
+
+            if not Is_List_Member (Assoc) then
+               Assoc := Empty;
+            else
+               Nlists.Next (Assoc);
+            end if;
+
+            --  After aggregate expressions, examine component associations if
+            --  present.
+
+            if No (Assoc) then
+               if Present (Agg)
+                 and then Process_Exprs
+                 and then Present (Component_Associations (Agg))
+               then
+                  Assoc         := First (Component_Associations (Agg));
+                  Process_Exprs := False;
+               else
+                  exit;
+               end if;
+            end if;
+         end loop;
+      end Check_Return_Obj_Accessibility;
 
       -------------------------------------
       -- Check_Return_Subtype_Indication --
@@ -963,9 +1093,7 @@ package body Sem_Ch6 is
             Resolve (Expr, R_Type);
             Check_Limited_Return (N, Expr, R_Type);
 
-            if Present (Expr) and then Nkind (Expr) = N_Aggregate then
-               Check_Aggregate_Accessibility (Expr);
-            end if;
+            Check_Return_Obj_Accessibility (N);
          end if;
 
          --  RETURN only allowed in SPARK as the last statement in function
@@ -1021,6 +1149,8 @@ package body Sem_Ch6 is
 
             Check_References (Stm_Entity);
 
+            Check_Return_Obj_Accessibility (N);
+
             --  Check RM 6.5 (5.9/3)
 
             if Has_Aliased then
@@ -1056,9 +1186,17 @@ package body Sem_Ch6 is
          --  Apply constraint check. Note that this is done before the implicit
          --  conversion of the expression done for anonymous access types to
          --  ensure correct generation of the null-excluding check associated
-         --  with null-excluding expressions found in return statements.
+         --  with null-excluding expressions found in return statements. We
+         --  don't need a check if the subtype of the return object is the
+         --  same as the result subtype of the function.
 
-         Apply_Constraint_Check (Expr, R_Type);
+         if Nkind (N) /= N_Extended_Return_Statement
+           or else Nkind (Obj_Decl) /= N_Object_Declaration
+           or else Nkind (Object_Definition (Obj_Decl)) not in N_Has_Entity
+           or else Entity (Object_Definition (Obj_Decl)) /= R_Type
+         then
+            Apply_Constraint_Check (Expr, R_Type);
+         end if;
 
          --  The return value is converted to the return type of the function,
          --  which implies a predicate check if the return type is predicated.
@@ -3296,7 +3434,18 @@ package body Sem_Ch6 is
             then
                null;
 
-            elsif not Present (Overridden_Operation (Spec_Id)) then
+            --  Overridden controlled primitives may have had their
+            --  Overridden_Operation field cleared according to the setting of
+            --  the Is_Hidden flag. An issue arises, however, when analyzing
+            --  an instance that may have manipulated the flag during
+            --  expansion. As a result, we add an exception for this case.
+
+            elsif not Present (Overridden_Operation (Spec_Id))
+              and then not (Nam_In (Chars (Spec_Id), Name_Adjust,
+                                                     Name_Finalize,
+                                                     Name_Initialize)
+                             and then In_Instance)
+            then
                Error_Msg_NE
                  ("subprogram& is not overriding", Body_Spec, Spec_Id);
 
@@ -3367,6 +3516,9 @@ package body Sem_Ch6 is
       end Verify_Overriding_Indicator;
 
       --  Local variables
+
+      Body_Nod         : Node_Id := Empty;
+      Minimum_Acc_Objs : List_Id := No_List;
 
       Saved_GM   : constant Ghost_Mode_Type := Ghost_Mode;
       Saved_IGR  : constant Node_Id         := Ignored_Ghost_Region;
@@ -3689,7 +3841,7 @@ package body Sem_Ch6 is
          --  generated. Freeze nodes, if any, are inserted before the current
          --  body. These freeze actions are also needed in ASIS mode and in
          --  Compile_Only mode to enable the proper back-end type annotations.
-         --  They are necessary in any case to insure order of elaboration
+         --  They are necessary in any case to ensure proper elaboration order
          --  in gigi.
 
          if Nkind (N) = N_Subprogram_Body
@@ -3698,13 +3850,16 @@ package body Sem_Ch6 is
            and then Serious_Errors_Detected = 0
            and then (Expander_Active
                       or else ASIS_Mode
-                      or else Operating_Mode = Check_Semantics)
+                      or else Operating_Mode = Check_Semantics
+                      or else Is_Ignored_Ghost_Entity (Spec_Id))
          then
             --  The body generated for an expression function that is not a
             --  completion is a freeze point neither for the profile nor for
             --  anything else. That's why, in order to prevent any freezing
             --  during analysis, we need to mask types declared outside the
             --  expression (and in an outer scope) that are not yet frozen.
+            --  This also needs to be done in the case of an ignored Ghost
+            --  expression function, where the expander isn't active.
 
             Set_Is_Frozen (Spec_Id);
             Mask_Types := Mask_Unfrozen_Types (Spec_Id);
@@ -4243,6 +4398,110 @@ package body Sem_Ch6 is
          end;
       end if;
 
+      --  Generate minimum accessibility local objects to correspond with
+      --  any extra formal added for anonymous access types. This new local
+      --  object can then be used instead of the formal in case it is used
+      --  in an actual to a call to a nested subprogram.
+
+      --  This method is used to supplement our "small integer model" for
+      --  accessibility-check generation (for more information see
+      --  Dynamic_Accessibility_Level).
+
+      --  Because we allow accessibility values greater than our expected value
+      --  passing along the same extra accessibility formal as an actual
+      --  to a nested subprogram becomes a problem because high values mean
+      --  different things to the callee even though they are the same to the
+      --  caller. So, as described in the first section, we create a local
+      --  object representing the minimum of the accessibility level value that
+      --  is passed in and the accessibility level of the callee's parameter
+      --  and locals and use it in the case of a call to a nested subprogram.
+      --  This generated object is refered to as a "minimum accessiblity
+      --  level."
+
+      if Present (Spec_Id) or else Present (Body_Id) then
+         Body_Nod := Unit_Declaration_Node (Body_Id);
+
+         declare
+            Form : Entity_Id;
+         begin
+            --  Grab the appropriate formal depending on whether there exists
+            --  an actual spec for the subprogram or whether we are dealing
+            --  with a protected subprogram.
+
+            if Present (Spec_Id) then
+               if Present (Protected_Body_Subprogram (Spec_Id)) then
+                  Form := First_Formal (Protected_Body_Subprogram (Spec_Id));
+               else
+                  Form := First_Formal (Spec_Id);
+               end if;
+            else
+               Form := First_Formal (Body_Id);
+            end if;
+
+            --  Loop through formals if the subprogram is capable of accepting
+            --  a generated local object. If it is not then it is also not
+            --  capable of having local subprograms meaning it would not need
+            --  a minimum accessibility level object anyway.
+
+            if Present (Body_Nod)
+              and then Has_Declarations (Body_Nod)
+              and then Nkind (Body_Nod) /= N_Package_Specification
+            then
+               while Present (Form) loop
+
+                  if Present (Extra_Accessibility (Form))
+                    and then No (Minimum_Accessibility (Form))
+                  then
+                     --  Generate the minimum accessibility level object
+
+                     --    A60b : integer := integer'min(2, paramL);
+
+                     declare
+                        Loc      : constant Source_Ptr := Sloc (Body_Nod);
+                        Obj_Node : constant Node_Id :=
+                           Make_Object_Declaration (Loc,
+                            Defining_Identifier =>
+                              Make_Temporary
+                                (Loc, 'A', Extra_Accessibility (Form)),
+                            Object_Definition   => New_Occurrence_Of
+                                                     (Standard_Integer, Loc),
+                            Expression          =>
+                              Make_Attribute_Reference (Loc,
+                                Prefix         => New_Occurrence_Of
+                                                    (Standard_Integer, Loc),
+                                Attribute_Name => Name_Min,
+                                Expressions    => New_List (
+                                  Make_Integer_Literal (Loc,
+                                    Object_Access_Level (Form)),
+                                  New_Occurrence_Of
+                                    (Extra_Accessibility (Form), Loc))));
+                     begin
+                        --  Add the new local object to the Minimum_Acc_Obj to
+                        --  be later prepended to the subprogram's list of
+                        --  declarations after we are sure all expansion is
+                        --  done.
+
+                        if Present (Minimum_Acc_Objs) then
+                           Prepend (Obj_Node, Minimum_Acc_Objs);
+                        else
+                           Minimum_Acc_Objs := New_List (Obj_Node);
+                        end if;
+
+                        --  Register the object and analyze it
+
+                        Set_Minimum_Accessibility
+                          (Form, Defining_Identifier (Obj_Node));
+
+                        Analyze (Obj_Node);
+                     end;
+                  end if;
+
+                  Next_Formal (Form);
+               end loop;
+            end if;
+         end;
+      end if;
+
       --  Now we can go on to analyze the body
 
       HSS := Handled_Statement_Sequence (N);
@@ -4346,6 +4605,19 @@ package body Sem_Ch6 is
       Check_Completion;
       Inspect_Deferred_Constant_Completion (Declarations (N));
       Analyze (HSS);
+
+      --  Add the generated minimum accessibility objects to the subprogram
+      --  body's list of declarations after analysis of the statements and
+      --  contracts.
+
+      while Is_Non_Empty_List (Minimum_Acc_Objs) loop
+         if Present (Declarations (Body_Nod)) then
+            Prepend (Remove_Head (Minimum_Acc_Objs), Declarations (Body_Nod));
+         else
+            Set_Declarations
+              (Body_Nod, New_List (Remove_Head (Minimum_Acc_Objs)));
+         end if;
+      end loop;
 
       --  Deal with end of scope processing for the body
 
@@ -5444,10 +5716,14 @@ package body Sem_Ch6 is
                and then Directly_Designated_Type (Old_Formal_Base) =
                                     Directly_Designated_Type (New_Formal_Base)
            and then ((Is_Itype (Old_Formal_Base)
-                       and then Can_Never_Be_Null (Old_Formal_Base))
+                       and then (Can_Never_Be_Null (Old_Formal_Base)
+                                  or else Is_Access_Constant
+                                            (Old_Formal_Base)))
                      or else
                       (Is_Itype (New_Formal_Base)
-                        and then Can_Never_Be_Null (New_Formal_Base)));
+                        and then (Can_Never_Be_Null (New_Formal_Base)
+                                   or else Is_Access_Constant
+                                             (New_Formal_Base))));
 
          --  Types must always match. In the visible part of an instance,
          --  usual overloading rules for dispatching operations apply, and
@@ -5953,7 +6229,7 @@ package body Sem_Ch6 is
               Access_Definition (N, Discriminant_Type (New_Discr));
 
          else
-            Analyze (Discriminant_Type (New_Discr));
+            Find_Type (Discriminant_Type (New_Discr));
             New_Discr_Type := Etype (Discriminant_Type (New_Discr));
 
             --  Ada 2005: if the discriminant definition carries a null
@@ -6292,13 +6568,18 @@ package body Sem_Ch6 is
 
       --  If there is an overridden subprogram, then check that there is no
       --  "not overriding" indicator, and mark the subprogram as overriding.
+
       --  This is not done if the overridden subprogram is marked as hidden,
       --  which can occur for the case of inherited controlled operations
       --  (see Derive_Subprogram), unless the inherited subprogram's parent
-      --  subprogram is not itself hidden. (Note: This condition could probably
-      --  be simplified, leaving out the testing for the specific controlled
-      --  cases, but it seems safer and clearer this way, and echoes similar
-      --  special-case tests of this kind in other places.)
+      --  subprogram is not itself hidden or we are within a generic instance,
+      --  in which case the hidden flag may have been modified for the
+      --  expansion of the instance.
+
+      --  (Note: This condition could probably be simplified, leaving out the
+      --  testing for the specific controlled cases, but it seems safer and
+      --  clearer this way, and echoes similar special-case tests of this
+      --  kind in other places.)
 
       if Present (Overridden_Subp)
         and then (not Is_Hidden (Overridden_Subp)
@@ -6307,7 +6588,8 @@ package body Sem_Ch6 is
                                                        Name_Adjust,
                                                        Name_Finalize)
                       and then Present (Alias (Overridden_Subp))
-                      and then not Is_Hidden (Alias (Overridden_Subp))))
+                      and then (not Is_Hidden (Alias (Overridden_Subp))
+                                 or else In_Instance)))
       then
          if Must_Not_Override (Spec) then
             Error_Msg_Sloc := Sloc (Overridden_Subp);
@@ -7019,6 +7301,11 @@ package body Sem_Ch6 is
       In_Scope    : Boolean;
       Typ         : Entity_Id;
 
+      function Is_Valid_Formal (F : Entity_Id) return Boolean;
+      --  Predicate for legality rule in 9.4 (11.9/2): If an inherited
+      --  subprogram is implemented by a protected procedure or entry,
+      --  its first parameter must be out, in out, or access-to-variable.
+
       function Matches_Prefixed_View_Profile
         (Prim_Params  : List_Id;
          Iface_Params : List_Id) return Boolean;
@@ -7026,6 +7313,19 @@ package body Sem_Ch6 is
       --  matches that of a potentially overridden interface subprogram
       --  Iface_Params. Also determine if the type of first parameter of
       --  Iface_Params is an implemented interface.
+
+      ----------------------
+      --  Is_Valid_Formal --
+      ----------------------
+
+      function Is_Valid_Formal (F : Entity_Id) return Boolean is
+      begin
+         return
+           Ekind_In (F, E_In_Out_Parameter, E_Out_Parameter)
+             or else
+               (Nkind (Parameter_Type (Parent (F))) = N_Access_Definition
+                 and then not Constant_Present (Parameter_Type (Parent (F))));
+      end Is_Valid_Formal;
 
       -----------------------------------
       -- Matches_Prefixed_View_Profile --
@@ -7280,10 +7580,7 @@ package body Sem_Ch6 is
 
                   if Ekind_In (Candidate, E_Entry, E_Procedure)
                     and then Is_Protected_Type (Typ)
-                    and then Ekind (Formal) /= E_In_Out_Parameter
-                    and then Ekind (Formal) /= E_Out_Parameter
-                    and then Nkind (Parameter_Type (Parent (Formal))) /=
-                                                       N_Access_Definition
+                    and then not Is_Valid_Formal (Formal)
                   then
                      null;
 
@@ -8050,7 +8347,6 @@ package body Sem_Ch6 is
       if Is_Build_In_Place_Function (E) then
          declare
             Result_Subt : constant Entity_Id := Etype (E);
-            Full_Subt   : constant Entity_Id := Available_View (Result_Subt);
             Formal_Typ  : Entity_Id;
             Subp_Decl   : Node_Id;
             Discard     : Entity_Id;
@@ -8100,7 +8396,7 @@ package body Sem_Ch6 is
             --  master of the tasks to be created, and the caller's activation
             --  chain.
 
-            if Has_Task (Full_Subt) then
+            if Needs_BIP_Task_Actuals (E) then
                Discard :=
                  Add_Extra_Formal
                    (E, RTE (RE_Master_Id),
@@ -8413,11 +8709,12 @@ package body Sem_Ch6 is
 
    begin
       --  This check applies only if we have a subprogram declaration with an
-      --  untagged record type.
+      --  untagged record type that is conformant to the predefined op.
 
       if Nkind (Decl) /= N_Subprogram_Declaration
         or else not Is_Record_Type (Typ)
         or else Is_Tagged_Type (Typ)
+        or else Etype (Next_Formal (First_Formal (Eq_Op))) /= Typ
       then
          return;
       end if;
@@ -10148,7 +10445,7 @@ package body Sem_Ch6 is
 
                         --  Here, S is "function ... return T;" declared in
                         --  the private part, not overriding some visible
-                        --  operation.  That's illegal in the tagged case
+                        --  operation. That's illegal in the tagged case
                         --  (but not if the private type is untagged).
 
                         if ((Present (Partial_View)
@@ -10337,9 +10634,10 @@ package body Sem_Ch6 is
       is
          function Check_Conforming_Parameters
            (E1_Param : Node_Id;
-            E2_Param : Node_Id) return Boolean;
+            E2_Param : Node_Id;
+            Ctype    : Conformance_Type) return Boolean;
          --  Starting from the given parameters, check that all the parameters
-         --  of two entries or subprograms are subtype conformant. Used to skip
+         --  of two entries or subprograms are conformant. Used to skip
          --  the check on the controlling argument.
 
          function Matching_Entry_Or_Subprogram
@@ -10366,26 +10664,38 @@ package body Sem_Ch6 is
          --  whose name matches the original name of Subp and has a profile
          --  conformant with the profile of Subp; return Empty if not found.
 
+         function Normalized_First_Parameter_Type
+           (E : Entity_Id) return Entity_Id;
+         --  Return the type of the first parameter unless that type
+         --  is an anonymous access type, in which case return the
+         --  designated type. Used to treat anonymous-access-to-synchronized
+         --  the same as synchronized for purposes of checking for
+         --  prefixed view profile conflicts.
+
          ---------------------------------
          -- Check_Conforming_Parameters --
          ---------------------------------
 
          function Check_Conforming_Parameters
            (E1_Param : Node_Id;
-            E2_Param : Node_Id) return Boolean
+            E2_Param : Node_Id;
+            Ctype    : Conformance_Type) return Boolean
          is
             Param_E1 : Node_Id := E1_Param;
             Param_E2 : Node_Id := E2_Param;
 
          begin
             while Present (Param_E1) and then Present (Param_E2) loop
-               if Ekind (Defining_Identifier (Param_E1)) /=
-                    Ekind (Defining_Identifier (Param_E2))
-                 or else not
+               if (Ctype >= Mode_Conformant) and then
+                 Ekind (Defining_Identifier (Param_E1)) /=
+                 Ekind (Defining_Identifier (Param_E2))
+               then
+                  return False;
+               elsif not
                    Conforming_Types
                      (Find_Parameter_Type (Param_E1),
                       Find_Parameter_Type (Param_E2),
-                      Subtype_Conformant)
+                      Ctype)
                then
                   return False;
                end if;
@@ -10418,7 +10728,8 @@ package body Sem_Ch6 is
                  and then
                    Check_Conforming_Parameters
                      (First (Parameter_Specifications (Parent (E))),
-                      Next (First (Parameter_Specifications (Parent (Subp)))))
+                      Next (First (Parameter_Specifications (Parent (Subp)))),
+                      Type_Conformant)
                then
                   return E;
                end if;
@@ -10458,7 +10769,8 @@ package body Sem_Ch6 is
                  and then
                    Check_Conforming_Parameters
                      (First (Parameter_Specifications (Parent (Ent))),
-                      Next (First (Parameter_Specifications (Parent (E)))))
+                      Next (First (Parameter_Specifications (Parent (E)))),
+                      Subtype_Conformant)
                then
                   return E;
                end if;
@@ -10512,6 +10824,21 @@ package body Sem_Ch6 is
             return Empty;
          end Matching_Original_Protected_Subprogram;
 
+         -------------------------------------
+         -- Normalized_First_Parameter_Type --
+         -------------------------------------
+
+         function Normalized_First_Parameter_Type
+           (E : Entity_Id) return Entity_Id
+         is
+            Result : Entity_Id := Etype (First_Entity (E));
+         begin
+            if Ekind (Result) = E_Anonymous_Access_Type then
+               Result := Designated_Type (Result);
+            end if;
+            return Result;
+         end Normalized_First_Parameter_Type;
+
       --  Start of processing for Has_Matching_Entry_Or_Subprogram
 
       begin
@@ -10522,20 +10849,23 @@ package body Sem_Ch6 is
          if Comes_From_Source (E)
            and then Is_Subprogram (E)
            and then Present (First_Entity (E))
-           and then Is_Concurrent_Record_Type (Etype (First_Entity (E)))
+           and then Is_Concurrent_Record_Type
+                      (Normalized_First_Parameter_Type (E))
          then
             if Scope (E) =
                  Scope (Corresponding_Concurrent_Type
-                         (Etype (First_Entity (E))))
+                         (Normalized_First_Parameter_Type (E)))
               and then
                 Present
                   (Matching_Entry_Or_Subprogram
-                     (Corresponding_Concurrent_Type (Etype (First_Entity (E))),
+                     (Corresponding_Concurrent_Type
+                        (Normalized_First_Parameter_Type (E)),
                       Subp => E))
             then
                Report_Conflict (E,
                  Matching_Entry_Or_Subprogram
-                   (Corresponding_Concurrent_Type (Etype (First_Entity (E))),
+                   (Corresponding_Concurrent_Type
+                      (Normalized_First_Parameter_Type (E)),
                     Subp => E));
                return True;
             end if;
@@ -11335,7 +11665,13 @@ package body Sem_Ch6 is
                goto Continue;
             end if;
 
-            Formal_Type := Entity (Ptype);
+            --  Protect against malformed parameter types
+
+            if Nkind (Ptype) not in N_Has_Entity then
+               Formal_Type := Any_Type;
+            else
+               Formal_Type := Entity (Ptype);
+            end if;
 
             if Is_Incomplete_Type (Formal_Type)
               or else
@@ -11448,6 +11784,11 @@ package body Sem_Ch6 is
               and then Aliased_Present (Param_Spec)
             then
                Set_Is_Aliased (Formal);
+
+               --  AI12-001: All aliased objects are considered to be specified
+               --  as independently addressable (RM C.6(8.1/4)).
+
+               Set_Is_Independent (Formal);
             end if;
 
             --  Ada 2005 (AI-231): Create and decorate an internal subtype
@@ -11882,7 +12223,7 @@ package body Sem_Ch6 is
             --  predicate may come from an explicit aspect of be inherited.
 
             elsif Has_Predicates (T) then
-               Insert_List_Before_And_Analyze (Decl,
+               Insert_List_After_And_Analyze (Decl,
                  Freeze_Entity (Defining_Identifier (Decl), N));
             end if;
 

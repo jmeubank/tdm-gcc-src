@@ -1,6 +1,6 @@
 // Iostreams wrapper for stdio FILE* -*- C++ -*-
 
-// Copyright (C) 2003-2019 Free Software Foundation, Inc.
+// Copyright (C) 2003-2020 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -202,7 +202,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  __whence = SEEK_CUR;
 	else
 	  __whence = SEEK_END;
-#if defined(_GLIBCXX_USE_LFS) || defined(__MINGW32__)
+#ifdef _GLIBCXX_USE_LFS
 	if (!fseeko64(_M_file, __off, __whence))
 	  __ret = std::streampos(ftello64(_M_file));
 #else

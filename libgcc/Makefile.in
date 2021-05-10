@@ -1,6 +1,6 @@
 # Makefile.in
 
-# Copyright (C) 2005-2019 Free Software Foundation, Inc.
+# Copyright (C) 2005-2020 Free Software Foundation, Inc.
 #
 # This file is part of GCC.
 #
@@ -89,8 +89,6 @@ LN_S = @LN_S@
 
 PWD_COMMAND = $${PWDCMD-pwd}
 
-SHLIB_MAYBE64 = $(if $(findstring $(if $(findstring x86_64,$(host_noncanonical)),.,64),$(MULTIDIR)),_64)
-
 # Flags to pass to a recursive make.
 FLAGS_TO_PASS = \
 	"AR=$(AR)" \
@@ -167,6 +165,7 @@ AUTOCONF = autoconf
 configure_deps = \
 	$(srcdir)/../config/enable.m4 \
 	$(srcdir)/../config/tls.m4 \
+	$(srcdir)/../config/toolexeclibdir.m4 \
 	$(srcdir)/../config/acx.m4 \
 	$(srcdir)/../config/no-executables.m4 \
 	$(srcdir)/../config/lib-ld.m4 \
@@ -261,6 +260,8 @@ PICFLAG = @PICFLAG@
 
 CET_FLAGS = @CET_FLAGS@
 
+USE_TM_CLONE_REGISTRY = @use_tm_clone_registry@
+
 # Defined in libgcc2.c, included only in the static library.
 LIB2FUNCS_ST = _eprintf __gcc_bcmp
 
@@ -301,7 +302,7 @@ CRTSTUFF_CFLAGS = -O2 $(GCC_CFLAGS) $(INCLUDES) $(MULTILIB_CFLAGS) -g0 \
   $(NO_PIE_CFLAGS) -finhibit-size-directive -fno-inline -fno-exceptions \
   -fno-zero-initialized-in-bss -fno-toplevel-reorder -fno-tree-vectorize \
   -fbuilding-libgcc -fno-stack-protector $(FORCE_EXPLICIT_EH_REGISTRY) \
-  $(INHIBIT_LIBC_CFLAGS)
+  $(INHIBIT_LIBC_CFLAGS) $(USE_TM_CLONE_REGISTRY)
 
 # Extra flags to use when compiling crt{begin,end}.o.
 CRTSTUFF_T_CFLAGS =
@@ -857,7 +858,7 @@ c_flags := -fexceptions
 
 ifeq ($(enable_shared),yes)
 
-libgcc-objects += $(addsuffix $(objext),$(basename $(notdir $(LIB2ADDEH))))
+libgcc-eh-objects += $(addsuffix $(objext),$(basename $(notdir $(LIB2ADDEHSTATIC))))
 libgcc-s-objects += $(addsuffix _s$(objext),$(basename $(notdir $(LIB2ADDEHSHARED))))
 
 iter-items := $(sort $(LIB2ADDEHSTATIC) $(LIB2ADDEHSHARED))
@@ -872,11 +873,6 @@ iter-items := $(LIB2ADDEH)
 include $(iterator)
 
 endif
-
-libgcc-objects += shmem-win32.o
-shmem-win32.o: $(srcdir)/../libgcc/config/i386/shmem-win32.c
-	$(filter-out -fexceptions,$(gcc_compile)) \
-	 -fno-exceptions -c $(srcdir)/../libgcc/config/i386/shmem-win32.c
 
 # Build LIBUNWIND. Use -fno-exceptions so that the unwind library does
 # not generate calls to __gcc_personality_v0.
@@ -894,21 +890,20 @@ include $(iterator)
 
 # Build libgcov components.
 
-LIBGCOV_MERGE = _gcov_merge_add _gcov_merge_single			\
-	_gcov_merge_ior _gcov_merge_time_profile _gcov_merge_icall_topn
+LIBGCOV_MERGE = _gcov_merge_add _gcov_merge_topn			\
+	_gcov_merge_ior _gcov_merge_time_profile
 LIBGCOV_PROFILER = _gcov_interval_profiler				\
 	_gcov_interval_profiler_atomic					\
 	_gcov_pow2_profiler						\
 	_gcov_pow2_profiler_atomic					\
-	_gcov_one_value_profiler					\
-	_gcov_one_value_profiler_atomic					\
+	_gcov_topn_values_profiler					\
+	_gcov_topn_values_profiler_atomic					\
 	_gcov_average_profiler						\
 	_gcov_average_profiler_atomic					\
 	_gcov_ior_profiler						\
 	_gcov_ior_profiler_atomic					\
-	_gcov_indirect_call_profiler_v3					\
-	_gcov_time_profiler						\
-	_gcov_indirect_call_topn_profiler
+	_gcov_indirect_call_profiler_v4					\
+	_gcov_time_profiler
 LIBGCOV_INTERFACE = _gcov_dump _gcov_flush _gcov_fork			\
 	_gcov_execl _gcov_execlp					\
 	_gcov_execle _gcov_execv _gcov_execvp _gcov_execve _gcov_reset
@@ -936,8 +931,9 @@ $(libgcov-driver-objects): %$(objext): $(srcdir)/libgcov-driver.c \
 libgcc.a: $(libgcc-objects)
 libgcov.a: $(libgcov-objects)
 libunwind.a: $(libunwind-objects)
+libgcc_eh.a: $(libgcc-eh-objects)
 
-libgcc.a libgcov.a libunwind.a:
+libgcc.a libgcov.a libunwind.a libgcc_eh.a:
 	-rm -f $@
 
 	objects="$(objects)";					\
@@ -961,7 +957,7 @@ all: libunwind.a
 endif
 
 ifeq ($(enable_shared),yes)
-all: libgcc_s$(SHLIB_EXT)
+all: libgcc_eh.a libgcc_s$(SHLIB_EXT)
 ifneq ($(LIBUNWIND),)
 all: libunwind$(SHLIB_EXT)
 libgcc_s$(SHLIB_EXT): libunwind$(SHLIB_EXT)
@@ -979,7 +975,7 @@ libgcc.map.in: $(SHLIB_MAPFILES)
 libgcc.map: $(SHLIB_MKMAP) libgcc.map.in $(libgcc-s-objects)
 	{ $(NM) $(SHLIB_NM_FLAGS) $(libgcc-s-objects); echo %%; \
 	  cat libgcc.map.in; \
-	} | $(AWK) -f $(SHLIB_MKMAP) $(subst @shlib_maybe64@,$(SHLIB_MAYBE64),$(SHLIB_MKMAP_OPTS)) > tmp-$@
+	} | $(AWK) -f $(SHLIB_MKMAP) $(SHLIB_MKMAP_OPTS) > tmp-$@
 	mv tmp-$@ $@
 libgcc_s$(SHLIB_EXT): libgcc.map
 mapfile = libgcc.map
@@ -1001,8 +997,7 @@ libgcc_s$(SHLIB_EXT): $(libgcc-s-objects) $(extra-parts) libgcc.a
 		@shlib_base_name@,libgcc_s,$(subst \
 		@shlib_map_file@,$(mapfile),$(subst \
 		@shlib_slibdir_qual@,$(MULTIOSSUBDIR),$(subst \
-		@shlib_maybe64@,$(SHLIB_MAYBE64),$(subst \
-		@shlib_slibdir@,$(shlib_slibdir),$(SHLIB_LINK)))))))))
+		@shlib_slibdir@,$(shlib_slibdir),$(SHLIB_LINK))))))))
 
 libunwind$(SHLIB_EXT): $(libunwind-s-objects) $(extra-parts)
 	# @multilib_flags@ is still needed because this may use
@@ -1164,10 +1159,13 @@ install-libunwind:
 install-shared:
 	$(mkinstalldirs) $(DESTDIR)$(inst_libdir)
 
+	$(INSTALL_DATA) libgcc_eh.a $(DESTDIR)$(inst_libdir)/
+	chmod 644 $(DESTDIR)$(inst_libdir)/libgcc_eh.a
+	$(RANLIB) $(DESTDIR)$(inst_libdir)/libgcc_eh.a
+
 	$(subst @multilib_dir@,$(MULTIDIR),$(subst \
 		@shlib_base_name@,libgcc_s,$(subst \
-		@shlib_maybe64@,$(SHLIB_MAYBE64),$(subst \
-		@shlib_slibdir_qual@,$(MULTIOSSUBDIR),$(SHLIB_INSTALL)))))
+		@shlib_slibdir_qual@,$(MULTIOSSUBDIR),$(SHLIB_INSTALL))))
 
 install-leaf: $(install-shared) $(install-libunwind)
 	$(mkinstalldirs) $(DESTDIR)$(inst_libdir)

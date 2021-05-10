@@ -1,7 +1,6 @@
 /* { dg-additional-options "-fopenacc-dim=16:16" } */
 
 #include <openacc.h>
-#include <alloca.h>
 #include <string.h>
 #include <stdio.h>
 #include <gomp-constants.h>
@@ -28,9 +27,9 @@ int check (const int *ary, int size, int gp, int wp, int vp)
 {
   int exit = 0;
   int ix;
-  int *gangs = (int *)alloca (gp * sizeof (int));
-  int *workers = (int *)alloca (wp * sizeof (int));
-  int *vectors = (int *)alloca (vp * sizeof (int));
+  int *gangs = (int *)__builtin_alloca (gp * sizeof (int));
+  int *workers = (int *)__builtin_alloca (wp * sizeof (int));
+  int *vectors = (int *)__builtin_alloca (vp * sizeof (int));
   int offloaded = 0;
   
   memset (gangs, 0, gp * sizeof (int));
@@ -129,5 +128,14 @@ int test_1 (int gp, int wp, int vp)
 
 int main ()
 {
+#ifdef ACC_DEVICE_TYPE_radeon
+  /* AMD GCN uses the autovectorizer for the vector dimension: the use
+     of a function call in vector-partitioned code in this test is not
+     currently supported.  */
+  /* AMD GCN does not currently support multiple workers.  This should be
+     set to 16 when that changes.  */
+  return test_1 (16, 1, 1);
+#else
   return test_1 (16, 16, 32);
+#endif
 }

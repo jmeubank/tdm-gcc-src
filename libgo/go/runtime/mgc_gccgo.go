@@ -11,10 +11,9 @@ import (
 	"unsafe"
 )
 
-// For gccgo, use go:linkname to rename compiler-called functions to
-// themselves, so that the compiler will export them.
+// For gccgo, use go:linkname to export compiler-called functions.
 //
-//go:linkname gcWriteBarrier runtime.gcWriteBarrier
+//go:linkname gcWriteBarrier
 
 // gcRoot is a single GC root: a variable plus a ptrmask.
 //go:notinheap
@@ -130,7 +129,7 @@ func createGcRootsIndex() {
 }
 
 // registerGCRoots is called by compiler-generated code.
-//go:linkname registerGCRoots runtime.registerGCRoots
+//go:linkname registerGCRoots
 
 // registerGCRoots is called by init functions to register the GC
 // roots for a package.  The init functions are run sequentially at
@@ -146,40 +145,15 @@ func registerGCRoots(r *gcRootList) {
 // and carries on.
 func checkPreempt() {
 	gp := getg()
-	if !gp.preempt || gp != gp.m.curg || gp.m.locks != 0 || gp.m.mallocing != 0 || gp.m.preemptoff != "" || gp.m.incgo {
+	if !gp.preempt || gp != gp.m.curg || !canPreemptM(gp.m) {
 		return
 	}
 
-	// Synchronize with scang.
-	gp.scanningself = true
-	casgstatus(gp, _Grunning, _Gwaiting)
-	if gp.preemptscan {
-		for !castogscanstatus(gp, _Gwaiting, _Gscanwaiting) {
-			// Likely to be racing with the GC as
-			// it sees a _Gwaiting and does the
-			// stack scan. If so, gcworkdone will
-			// be set and gcphasework will simply
-			// return.
-		}
-		if !gp.gcscandone {
-			mp := acquirem()
-			gcw := &gp.m.p.ptr().gcw
-			scanstack(gp, gcw)
-			releasem(mp)
-			gp.gcscandone = true
-		}
-		gp.preemptscan = false
-		gp.preempt = false
-		casfrom_Gscanstatus(gp, _Gscanwaiting, _Gwaiting)
-		// This clears gcscanvalid.
-		casgstatus(gp, _Gwaiting, _Grunning)
-		gp.scanningself = false
-		return
+	if gp.preemptStop {
+		mcall(preemptPark)
 	}
 
 	// Act like goroutine called runtime.Gosched.
-	casgstatus(gp, _Gwaiting, _Grunning)
-	gp.scanningself = false
 	mcall(gopreempt_m)
 }
 

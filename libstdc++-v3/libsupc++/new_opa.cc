@@ -1,6 +1,6 @@
 // Support routines for the -*- C++ -*- dynamic memory management.
 
-// Copyright (C) 1997-2019 Free Software Foundation, Inc.
+// Copyright (C) 1997-2020 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
@@ -43,6 +43,21 @@ extern "C" void *memalign(std::size_t boundary, std::size_t size);
 using std::new_handler;
 using std::bad_alloc;
 
+#if ! _GLIBCXX_HOSTED
+extern "C"
+{
+# if _GLIBCXX_HAVE_ALIGNED_ALLOC
+  void *aligned_alloc(size_t alignment, size_t size);
+# elif _GLIBCXX_HAVE__ALIGNED_MALLOC
+  void *_aligned_malloc(size_t size, size_t alignment);
+# elif _GLIBCXX_HAVE_POSIX_MEMALIGN
+  void *posix_memalign(void **, size_t alignment, size_t size);
+# elif _GLIBCXX_HAVE_MEMALIGN
+  void *memalign(size_t alignment, size_t size);
+# endif
+}
+#endif
+
 namespace __gnu_cxx {
 #if _GLIBCXX_HAVE_ALIGNED_ALLOC
 using ::aligned_alloc;
@@ -68,12 +83,6 @@ aligned_alloc (std::size_t al, std::size_t sz)
 static inline void*
 aligned_alloc (std::size_t al, std::size_t sz)
 {
-#ifdef __sun
-  // Solaris 10 memalign requires that alignment is greater than or equal to
-  // the size of a word.
-  if (al < sizeof(int))
-    al = sizeof(int);
-#endif
   return memalign (al, sz);
 }
 #else // !HAVE__ALIGNED_MALLOC && !HAVE_POSIX_MEMALIGN && !HAVE_MEMALIGN
@@ -106,7 +115,7 @@ operator new (std::size_t sz, std::align_val_t al)
 
   /* Alignment must be a power of two.  */
   /* XXX This should be checked by the compiler (PR 86878).  */
-  if (__builtin_expect (!std::__ispow2(align), false))
+  if (__builtin_expect (!std::__has_single_bit(align), false))
     _GLIBCXX_THROW_OR_ABORT(bad_alloc());
 
   /* malloc (0) is unpredictable; avoid it.  */
@@ -114,9 +123,10 @@ operator new (std::size_t sz, std::align_val_t al)
     sz = 1;
 
 #if _GLIBCXX_HAVE_ALIGNED_ALLOC
-# ifdef _AIX
+# if defined _AIX || defined __APPLE__
   /* AIX 7.2.0.0 aligned_alloc incorrectly has posix_memalign's requirement
-   * that alignment is a multiple of sizeof(void*).  */
+   * that alignment is a multiple of sizeof(void*).
+   * OS X 10.15 has the same requirement.  */
   if (align < sizeof(void*))
     align = sizeof(void*);
 # endif

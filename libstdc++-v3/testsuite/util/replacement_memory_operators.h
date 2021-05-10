@@ -1,5 +1,5 @@
 //
-// Copyright (C) 2007-2019 Free Software Foundation, Inc.
+// Copyright (C) 2007-2020 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -76,7 +76,11 @@ namespace __gnu_test
     check_delete(Alloc a = Alloc())
     {
       __gnu_test::counter::exceptions(false);
+#if __cplusplus >= 201103L
+      auto p = a.allocate(10);
+#else
       typename Alloc::pointer p = a.allocate(10);
+#endif
       const std::size_t count1 = __gnu_test::counter::count();
       a.deallocate(p, 10);
       const std::size_t count2 = __gnu_test::counter::count();

@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2007-2019 Free Software Foundation, Inc.
+// Copyright (C) 2007-2020 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -85,7 +85,7 @@ namespace __gnu_parallel
 	// Check for length without duplicates
 	// Needed for position in output
 	_DifferenceType __i = 0;
-	_OutputIterator ___out = __result;
+	_OutputIterator __out = __result;
 
 	if (__iam == 0)
           {
@@ -93,7 +93,7 @@ namespace __gnu_parallel
             __end = __borders[__iam + 1];
 
             ++__i;
-            *___out++ = *__first;
+            *__out++ = *__first;
 
             for (_IIter __iter = __first + __begin; __iter < __first + __end;
 		 ++__iter)
@@ -101,7 +101,7 @@ namespace __gnu_parallel
         	if (!__binary_pred(*__iter, *(__iter - 1)))
                   {
                     ++__i;
-                    *___out++ = *__iter;
+                    *__out++ = *__iter;
                   }
               }
           }

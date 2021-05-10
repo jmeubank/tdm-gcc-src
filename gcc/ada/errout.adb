@@ -861,6 +861,14 @@ package body Errout is
                end if;
             end;
          end if;
+
+         --  Disable warnings on unused use clauses and the like. Otherwise, an
+         --  error might hide a reference to an entity in a used package, so
+         --  after fixing the error, the use clause no longer looks like it was
+         --  unused.
+
+         Check_Unreferenced := False;
+         Check_Unreferenced_Formals := False;
       end Handle_Serious_Error;
 
    --  Start of processing for Error_Msg_Internal
@@ -1100,7 +1108,7 @@ package body Errout is
       --  Test if warning to be treated as error
 
       Warn_Err :=
-        Is_Warning_Msg
+        (Is_Warning_Msg or Is_Style_Msg)
           and then (Warning_Treated_As_Error (Msg_Buffer (1 .. Msglen))
                       or else
                     Warning_Treated_As_Error (Get_Warning_Tag (Cur_Msg)));
@@ -1709,6 +1717,20 @@ package body Errout is
       Warnings.Init;
       Specific_Warnings.Init;
    end Initialize;
+
+   -------------------------------
+   -- Is_Size_Too_Small_Message --
+   -------------------------------
+
+   function Is_Size_Too_Small_Message (S : String) return Boolean is
+      Size_For : constant String := "size for";
+      pragma Assert (Size_Too_Small_Message (1 .. Size_For'Last) = Size_For);
+      --  Assert that Size_Too_Small_Message starts with Size_For
+   begin
+      return S'Length >= Size_For'Length
+        and then S (S'First .. S'First + Size_For'Length - 1) = Size_For;
+      --  True if S starts with Size_For
+   end Is_Size_Too_Small_Message;
 
    -----------------
    -- No_Warnings --
@@ -3259,7 +3281,7 @@ package body Errout is
 
       --  Processing for "Size too small" messages
 
-      elsif Msg = "size for& too small, minimum allowed is ^" then
+      elsif Is_Size_Too_Small_Message (Msg) then
 
          --  Suppress "size too small" errors in CodePeer mode, since code may
          --  be analyzed in a different configuration than the one used for

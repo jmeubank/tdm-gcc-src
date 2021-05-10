@@ -1,10 +1,46 @@
-2019-08-12  Release Manager
+2021-04-08  Release Manager
 
-	* GCC 9.2.0 released.
+	* GCC 10.3.0 released.
 
-2019-05-03  Release Manager
+2020-07-23  Release Manager
 
-	* GCC 9.1.0 released.
+	* GCC 10.2.0 released.
+
+2020-05-07  Release Manager
+
+	* GCC 10.1.0 released.
+
+2020-01-24  Maciej W. Rozycki  <macro@wdc.com>
+
+	* plugin/configure.ac: Handle `--with-toolexeclibdir='.
+	* plugin/Makefile.in: Regenerate.
+	* plugin/aclocal.m4: Regenerate.
+	* plugin/configure: Regenerate.
+	* configure.ac: Handle `--with-toolexeclibdir='.
+	* Makefile.in: Regenerate.
+	* aclocal.m4: Regenerate.
+	* configure: Regenerate.
+
+2020-01-10  Thomas Schwinge  <thomas@codesourcery.com>
+
+	* plugin/libgomp-plugin-intelmic.cpp (GOMP_OFFLOAD_get_property):
+	Remove.
+
+2019-12-22  Maciej W. Rozycki  <macro@codesourcery.com>
+	    Frederik Harwath  <frederik@codesourcery.com>
+	    Thomas Schwinge  <tschwinge@codesourcery.com>
+
+	liboffloadmic/
+	* plugin/libgomp-plugin-intelmic.cpp (GOMP_OFFLOAD_get_property):
+	New function.
+
+2019-10-01  Maciej W. Rozycki  <macro@wdc.com>
+
+	* plugin/configure: Regenerate.
+
+2019-09-27  Maciej W. Rozycki  <macro@wdc.com>
+
+	* configure: Regenerate.
 
 2019-01-09  Sandra Loosemore  <sandra@codesourcery.com>
 

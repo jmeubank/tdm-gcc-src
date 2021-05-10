@@ -1,5 +1,5 @@
 // -*- C++ -*- std::unexpected handler
-// Copyright (C) 2002-2019 Free Software Foundation, Inc.
+// Copyright (C) 2002-2020 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
@@ -23,11 +23,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "unwind-cxx.h"
-#include "shmem.h"
 
 /* The current installed user handler.  */
-namespace __cxxabiv1
-{
-  __SHMEM_DEFINE_INIT(std::unexpected_handler, __unexpected_handler_sh, std::terminate)
-}
+std::unexpected_handler __cxxabiv1::__unexpected_handler = std::terminate;
 

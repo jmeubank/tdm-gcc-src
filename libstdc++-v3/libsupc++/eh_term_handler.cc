@@ -1,5 +1,5 @@
 // -*- C++ -*- std::terminate handler
-// Copyright (C) 2002-2019 Free Software Foundation, Inc.
+// Copyright (C) 2002-2020 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
@@ -24,29 +24,8 @@
 
 #include <bits/c++config.h>
 #include "unwind-cxx.h"
-#include "shmem.h"
+#include "eh_term_handler.h"
 
-/* We default to the talkative, informative handler in a normal hosted
-   library.  This pulls in the demangler, the dyn-string utilities, and
-   elements of the I/O library.  For a low-memory environment, you can return
-   to the earlier "silent death" handler by configuring GCC with
-   --disable-libstdcxx-verbose and rebuilding the library.
-   In a freestanding environment, we default to this latter approach.  */
-
-#if _GLIBCXX_HOSTED && _GLIBCXX_VERBOSE && __cpp_exceptions
 /* The current installed user handler.  */
-namespace __cxxabiv1
-{
-	__SHMEM_DEFINE_INIT(std::terminate_handler, __terminate_handler_sh,
-		__gnu_cxx::__verbose_terminate_handler)
-}
-#else
-# include <cstdlib>
-/* The current installed user handler.  */
-namespace __cxxabiv1
-{
-	__SHMEM_DEFINE_INIT(std::terminate_handler, __terminate_handler_sh,
-		std::abort)
-}
-#endif
-
+std::terminate_handler __cxxabiv1::__terminate_handler =
+	_GLIBCXX_DEFAULT_TERM_HANDLER;

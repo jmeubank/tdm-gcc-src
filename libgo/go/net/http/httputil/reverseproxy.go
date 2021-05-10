@@ -18,12 +18,20 @@ import (
 	"sync"
 	"time"
 
-	"internal/x/net/http/httpguts"
+	"golang.org/x/net/http/httpguts"
 )
 
 // ReverseProxy is an HTTP Handler that takes an incoming request and
 // sends it to another server, proxying the response back to the
 // client.
+//
+// ReverseProxy automatically sets the client IP as the value of the
+// X-Forwarded-For header.
+// If an X-Forwarded-For header already exists, the client IP is
+// appended to the existing values.
+// To prevent IP spoofing, be sure to delete any pre-existing
+// X-Forwarded-For header coming from the client or
+// an untrusted proxy.
 type ReverseProxy struct {
 	// Director must be a function which modifies
 	// the request into a new request to be sent
@@ -51,8 +59,7 @@ type ReverseProxy struct {
 
 	// ErrorLog specifies an optional logger for errors
 	// that occur when attempting to proxy the request.
-	// If nil, logging goes to os.Stderr via the log package's
-	// standard logger.
+	// If nil, logging is done via the log package's standard logger.
 	ErrorLog *log.Logger
 
 	// BufferPool optionally specifies a buffer pool to
@@ -132,16 +139,6 @@ func copyHeader(dst, src http.Header) {
 	}
 }
 
-func cloneHeader(h http.Header) http.Header {
-	h2 := make(http.Header, len(h))
-	for k, vv := range h {
-		vv2 := make([]string, len(vv))
-		copy(vv2, vv)
-		h2[k] = vv2
-	}
-	return h2
-}
-
 // Hop-by-hop headers. These are removed when sent to the backend.
 // As of RFC 7230, hop-by-hop headers are required to appear in the
 // Connection header field. These are the headers defined by the
@@ -206,12 +203,13 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		}()
 	}
 
-	outreq := req.WithContext(ctx) // includes shallow copies of maps, but okay
+	outreq := req.Clone(ctx)
 	if req.ContentLength == 0 {
 		outreq.Body = nil // Issue 16036: nil Body for http.Transport retries
 	}
-
-	outreq.Header = cloneHeader(req.Header)
+	if outreq.Header == nil {
+		outreq.Header = make(http.Header) // Issue 33142: historical behavior was to always allocate
+	}
 
 	p.Director(outreq)
 	outreq.Close = false
@@ -357,10 +355,10 @@ func shouldPanicOnCopyError(req *http.Request) bool {
 // removeConnectionHeaders removes hop-by-hop headers listed in the "Connection" header of h.
 // See RFC 7230, section 6.1
 func removeConnectionHeaders(h http.Header) {
-	if c := h.Get("Connection"); c != "" {
-		for _, f := range strings.Split(c, ",") {
-			if f = strings.TrimSpace(f); f != "" {
-				h.Del(f)
+	for _, f := range h["Connection"] {
+		for _, sf := range strings.Split(f, ",") {
+			if sf = strings.TrimSpace(sf); sf != "" {
+				h.Del(sf)
 			}
 		}
 	}

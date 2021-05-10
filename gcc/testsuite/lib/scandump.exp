@@ -1,4 +1,4 @@
-# Copyright (C) 2000-2019 Free Software Foundation, Inc.
+# Copyright (C) 2000-2020 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -70,6 +70,7 @@ proc scan-dump { args } {
     set output_file "[glob -nocomplain $dumpbase.[lindex $args 2]]"
     if { $output_file == "" } {
 	verbose -log "$testcase: dump file does not exist"
+	verbose -log "dump file: $dumpbase.$suf"
 	unresolved "$testname"
 	return
     }

@@ -1,4 +1,4 @@
-/* Copyright (C) 2006-2019 Free Software Foundation, Inc.
+/* Copyright (C) 2006-2020 Free Software Foundation, Inc.
    Contributed by Francois-Xavier Coudert <coudert@clipper.ens.fr>
 
    This file is part of the GNU Offloading and Multi Processing Library
@@ -32,8 +32,8 @@
 double
 omp_get_wtime (void)
 {
-  struct __timeb64 timebuf;
-  _ftime64 (&timebuf);
+  struct _timeb timebuf;
+  _ftime (&timebuf);
   return (timebuf.time + (long)(timebuf.millitm) / 1e3);
 }
 

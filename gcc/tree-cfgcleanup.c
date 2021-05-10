@@ -1,5 +1,5 @@
 /* CFG cleanup for trees.
-   Copyright (C) 2001-2019 Free Software Foundation, Inc.
+   Copyright (C) 2001-2020 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -101,6 +101,8 @@ convert_single_case_switch (gswitch *swtch, gimple_stmt_iterator &gsi)
   if (high)
     {
       tree lhs, rhs;
+      if (range_check_type (TREE_TYPE (index)) == NULL_TREE)
+	return false;
       generate_range_test (bb, index, low, high, &lhs, &rhs);
       cond = gimple_build_cond (LE_EXPR, lhs, rhs, NULL_TREE, NULL_TREE);
     }
@@ -1596,7 +1598,7 @@ delete_unreachable_blocks_update_callgraph (cgraph_node *dst_node,
 		  if (!e->inline_failed)
 		    e->callee->remove_symbol_and_inline_clones (dst_node);
 		  else
-		    e->remove ();
+		    cgraph_edge::remove (e);
 		}
 	      if (update_clones && dst_node->clones)
 		for (node = dst_node->clones; node != dst_node;)
@@ -1608,7 +1610,7 @@ delete_unreachable_blocks_update_callgraph (cgraph_node *dst_node,
 			if (!e->inline_failed)
 			  e->callee->remove_symbol_and_inline_clones (dst_node);
 			else
-			  e->remove ();
+			  cgraph_edge::remove (e);
 		      }
 
 		    if (node->clones)

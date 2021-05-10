@@ -1,6 +1,6 @@
 /* Threads compatibility routines for libgcc2 and libobjc.  */
 /* Compile this one with gcc.  */
-/* Copyright (C) 1997-2019 Free Software Foundation, Inc.
+/* Copyright (C) 1997-2020 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -31,10 +31,8 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 #define __GTHREADS 1
 #define __GTHREADS_CXX0X 1
+
 #include <pthread.h>
-#if defined (_WIN32) && !defined (__CYGWIN__)
-#define _GTHREAD_USE_MUTEX_INIT_FUNC 1
-#endif
 
 #if ((defined(_LIBOBJC) || defined(_LIBOBJC_WEAK)) \
      || !defined(_GTHREAD_USE_MUTEX_TIMEDLOCK))
@@ -84,7 +82,7 @@ typedef struct timespec __gthread_time_t;
 # define __GTHREAD_COND_INIT_FUNCTION __gthread_cond_init_function
 #endif
 
-#if SUPPORTS_WEAK && GTHREAD_USE_WEAK && !defined(__MINGW32__)
+#if SUPPORTS_WEAK && GTHREAD_USE_WEAK
 # ifndef __gthrw_pragma
 #  define __gthrw_pragma(pragma)
 # endif

@@ -9,23 +9,18 @@ import (
 	"unsafe"
 )
 
-// For gccgo, use go:linkname to rename compiler-called functions to
-// themselves, so that the compiler will export them.
+// For gccgo, use go:linkname to export compiler-called functions.
 //
-//go:linkname concatstrings runtime.concatstrings
-//go:linkname concatstring2 runtime.concatstring2
-//go:linkname concatstring3 runtime.concatstring3
-//go:linkname concatstring4 runtime.concatstring4
-//go:linkname concatstring5 runtime.concatstring5
-//go:linkname slicebytetostring runtime.slicebytetostring
-//go:linkname slicebytetostringtmp runtime.slicebytetostringtmp
-//go:linkname stringtoslicebyte runtime.stringtoslicebyte
-//go:linkname stringtoslicerune runtime.stringtoslicerune
-//go:linkname slicerunetostring runtime.slicerunetostring
-//go:linkname intstring runtime.intstring
+//go:linkname concatstrings
+//go:linkname slicebytetostring
+//go:linkname slicebytetostringtmp
+//go:linkname stringtoslicebyte
+//go:linkname stringtoslicerune
+//go:linkname slicerunetostring
+//go:linkname intstring
 // Temporary for C code to call:
-//go:linkname gostringnocopy runtime.gostringnocopy
-//go:linkname findnull runtime.findnull
+//go:linkname gostringnocopy
+//go:linkname findnull
 
 // The constant is known to the compiler.
 // There is no fundamental theory behind this number.
@@ -38,7 +33,9 @@ type tmpBuf [tmpStringBufSize]byte
 // If buf != nil, the compiler has determined that the result does not
 // escape the calling function, so the string data can be stored in buf
 // if small enough.
-func concatstrings(buf *tmpBuf, a []string) string {
+func concatstrings(buf *tmpBuf, p *string, n int) string {
+	var a []string
+	*(*slice)(unsafe.Pointer(&a)) = slice{unsafe.Pointer(p), n, n}
 	// idx := 0
 	l := 0
 	count := 0
@@ -71,22 +68,6 @@ func concatstrings(buf *tmpBuf, a []string) string {
 		b = b[len(x):]
 	}
 	return s
-}
-
-func concatstring2(buf *tmpBuf, a [2]string) string {
-	return concatstrings(buf, a[:])
-}
-
-func concatstring3(buf *tmpBuf, a [3]string) string {
-	return concatstrings(buf, a[:])
-}
-
-func concatstring4(buf *tmpBuf, a [4]string) string {
-	return concatstrings(buf, a[:])
-}
-
-func concatstring5(buf *tmpBuf, a [5]string) string {
-	return concatstrings(buf, a[:])
 }
 
 // Buf is a fixed-size buffer for the result,
@@ -321,6 +302,8 @@ func gobytes(p *byte, n int) (b []byte) {
 	return
 }
 
+// This is exported via linkname to assembly in syscall (for Plan9).
+//go:linkname gostring
 func gostring(p *byte) string {
 	l := findnull(p)
 	if l == 0 {
@@ -358,6 +341,10 @@ func contains(s, t string) bool {
 
 func hasPrefix(s, prefix string) bool {
 	return len(s) >= len(prefix) && s[:len(prefix)] == prefix
+}
+
+func hasSuffix(s, suffix string) bool {
+	return len(s) >= len(suffix) && s[len(s)-len(suffix):] == suffix
 }
 
 const (
@@ -520,4 +507,38 @@ func __go_byte_array_to_string(p unsafe.Pointer, l int) string {
 //go:linkname __go_string_to_byte_array __go_string_to_byte_array
 func __go_string_to_byte_array(s string) []byte {
 	return stringtoslicebyte(nil, s)
+}
+
+// parseRelease parses a dot-separated version number. It follows the
+// semver syntax, but allows the minor and patch versions to be
+// elided.
+func parseRelease(rel string) (major, minor, patch int, ok bool) {
+	// Strip anything after a dash or plus.
+	for i := 0; i < len(rel); i++ {
+		if rel[i] == '-' || rel[i] == '+' {
+			rel = rel[:i]
+			break
+		}
+	}
+
+	next := func() (int, bool) {
+		for i := 0; i < len(rel); i++ {
+			if rel[i] == '.' {
+				ver, ok := atoi(rel[:i])
+				rel = rel[i+1:]
+				return ver, ok
+			}
+		}
+		ver, ok := atoi(rel)
+		rel = ""
+		return ver, ok
+	}
+	if major, ok = next(); !ok || rel == "" {
+		return
+	}
+	if minor, ok = next(); !ok || rel == "" {
+		return
+	}
+	patch, ok = next()
+	return
 }

@@ -1,6 +1,6 @@
 /* Declarations for insn-output.c and other code to write to asm_out_file.
    These functions are defined in final.c, and varasm.c.
-   Copyright (C) 1987-2019 Free Software Foundation, Inc.
+   Copyright (C) 1987-2020 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -167,6 +167,7 @@ extern int decode_reg_name (const char *);
 extern int decode_reg_name_and_count (const char *, int *);
 
 extern void do_assemble_alias (tree, tree);
+extern void do_assemble_symver (tree, tree);
 
 extern void default_assemble_visibility (tree, int);
 
@@ -235,6 +236,12 @@ extern void assemble_label (FILE *, const char *);
    NAME is transformed in a target-specific way (usually by the
    addition of an underscore).  */
 extern void assemble_name_raw (FILE *, const char *);
+
+/* Return NAME that should actually be emitted, looking through
+   transparent aliases.  If NAME refers to an entity that is also
+   represented as a tree (like a function or variable), mark the entity
+   as referenced.  */
+extern const char *assemble_name_resolve (const char *);
 
 /* Like assemble_name_raw, but should be used when NAME might refer to
    an entity that is also represented as a tree (like a function or
@@ -516,7 +523,8 @@ extern GTY(()) bool in_cold_section_p;
 
 extern section *get_unnamed_section (unsigned int, void (*) (const void *),
 				     const void *);
-extern section *get_section (const char *, unsigned int, tree);
+extern section *get_section (const char *, unsigned int, tree,
+			     bool not_existing = false);
 extern section *get_named_section (tree, const char *, int);
 extern section *get_variable_section (tree, bool);
 extern void place_block_symbol (rtx);
@@ -604,7 +612,7 @@ extern int maybe_assemble_visibility (tree);
 
 extern int default_address_cost (rtx, machine_mode, addr_space_t, bool);
 
-/* Output stack usage information.  */
+/* Stack usage.  */
 extern void output_stack_usage (void);
 
 #endif /* ! GCC_OUTPUT_H */

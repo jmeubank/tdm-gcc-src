@@ -112,20 +112,43 @@ version (CRuntime_Glibc)
 }
 else version (CRuntime_Musl)
 {
-    alias long      blksize_t;
-    alias ulong     nlink_t;
-    alias long      dev_t;
-    alias long      blkcnt_t;
-    alias ulong     ino_t;
-    alias long      off_t;
-    alias long      _Addr;
-    alias int       pid_t;
-    alias uint      uid_t;
-    alias uint      gid_t;
-    alias long      time_t;
-    alias long      clock_t;
-    alias ulong     pthread_t;
-    alias _Addr     ssize_t;
+    version (AArch64)
+    {
+        alias int    blksize_t;
+        alias uint   nlink_t;
+    }
+    else version (MIPS64)
+    {
+        alias c_long blksize_t;
+        alias uint   nlink_t;
+    }
+    else version (RISCV64)
+    {
+        alias int    blksize_t;
+        alias uint   nlink_t;
+    }
+    else
+    {
+        alias c_long blksize_t;
+        alias c_ulong nlink_t;
+    }
+    alias long       dev_t;
+    alias long       blkcnt_t;
+    alias ulong      ino_t;
+    alias long       off_t;
+    alias int        pid_t;
+    alias uint       uid_t;
+    alias uint       gid_t;
+    version (D_X32)
+        alias long   time_t;
+    else
+        alias c_long time_t;
+    alias c_long     clock_t;
+    alias c_ulong    pthread_t;
+    version (D_LP64)
+        alias c_long ssize_t;
+    else
+        alias int    ssize_t;
 }
 else version (Darwin)
 {
@@ -176,6 +199,23 @@ else version (NetBSD)
     alias c_long      ssize_t;
     alias c_long      time_t;
     alias uint        uid_t;
+}
+else version (OpenBSD)
+{
+    alias char*     caddr_t;
+    alias long      blkcnt_t;
+    alias int       blksize_t;
+    alias int       dev_t;
+    alias uint      gid_t;
+    alias ulong     ino_t;
+    alias uint      mode_t;
+    alias uint      nlink_t;
+    alias long      off_t;
+    alias int       pid_t;
+    //size_t (defined in core.stdc.stddef)
+    alias c_long    ssize_t;
+    alias long      time_t;
+    alias uint      uid_t;
 }
 else version (DragonFlyBSD)
 {
@@ -361,6 +401,16 @@ else version (NetBSD)
     alias c_long    suseconds_t;
     alias uint      useconds_t;
 }
+else version (OpenBSD)
+{
+    alias ulong     fsblkcnt_t;
+    alias ulong     fsfilcnt_t;
+    alias long      clock_t;
+    alias uint      id_t;
+    alias c_long    key_t;
+    alias c_long    suseconds_t;
+    alias uint      useconds_t;
+}
 else version (DragonFlyBSD)
 {
     alias ulong     fsblkcnt_t;
@@ -420,7 +470,10 @@ else version (CRuntime_Musl)
   }
     alias uint mode_t;
     alias uint id_t;
-    alias long suseconds_t;
+    version (D_X32)
+        alias long susseconds_t;
+    else
+        alias c_long suseconds_t;
 }
 else version (CRuntime_UClibc)
 {
@@ -723,46 +776,83 @@ version (CRuntime_Glibc)
 }
 else version (CRuntime_Musl)
 {
-    version (X86_64) {
+    version (D_LP64)
+    {
         union pthread_attr_t
         {
             int[14] __i;
             ulong[7] __s;
         }
+
         union pthread_cond_t
         {
             int[12] __i;
             void*[6] __p;
         }
+
         union pthread_mutex_t
         {
             int[10] __i;
             void*[5] __p;
         }
+
         union pthread_rwlock_t
         {
             int[14] __i;
             void*[7] __p;
         }
-        struct pthread_rwlockattr_t
-        {
-            uint[2] __attr;
-        }
-        alias uint pthread_key_t;
-        alias uint pthread_condattr_t;
-        alias uint pthread_mutexattr_t;
-        alias int pthread_once_t;
     }
     else
     {
-        static assert (false, "Architecture unsupported");
+        union pthread_attr_t
+        {
+            int[9] __i;
+            uint[9] __s;
+        }
+
+        union pthread_cond_t
+        {
+            int[12] __i;
+            void*[12] __p;
+        }
+
+        union pthread_mutex_t
+        {
+            int[6] __i;
+            void*[6] __p;
+        }
+
+        union pthread_rwlock_t
+        {
+            int[8] __i;
+            void*[8] __p;
+        }
     }
+
+    struct pthread_rwlockattr_t
+    {
+        uint[2] __attr;
+    }
+
+    alias uint pthread_key_t;
+
+    struct pthread_condattr_t
+    {
+        uint __attr;
+    }
+
+    struct pthread_mutexattr_t
+    {
+        uint __attr;
+    }
+
+    alias int pthread_once_t;
 }
 else version (Darwin)
 {
     version (D_LP64)
     {
-        enum __PTHREAD_SIZE__               = 1168;
+        enum __PTHREAD_SIZE__               = 8176;
         enum __PTHREAD_ATTR_SIZE__          = 56;
         enum __PTHREAD_MUTEXATTR_SIZE__     = 8;
         enum __PTHREAD_MUTEX_SIZE__         = 56;
@@ -774,7 +864,7 @@ else version (Darwin)
     }
     else
     {
-        enum __PTHREAD_SIZE__               = 596;
+        enum __PTHREAD_SIZE__               = 4088;
         enum __PTHREAD_ATTR_SIZE__          = 36;
         enum __PTHREAD_MUTEXATTR_SIZE__     = 8;
         enum __PTHREAD_MUTEX_SIZE__         = 40;
@@ -932,6 +1022,26 @@ else version (NetBSD)
     }
 
     alias uint pthread_key_t;
+    alias void* pthread_t;
+}
+else version (OpenBSD)
+{
+    alias void* pthread_attr_t;
+    alias void* pthread_cond_t;
+    alias void* pthread_condattr_t;
+    alias int   pthread_key_t;
+    alias void* pthread_mutex_t;
+    alias void* pthread_mutexattr_t;
+
+    private struct pthread_once
+    {
+        int state;
+        pthread_mutex_t mutex;
+    }
+    alias pthread_once pthread_once_t;
+
+    alias void* pthread_rwlock_t;
+    alias void* pthread_rwlockattr_t;
     alias void* pthread_t;
 }
 else version (DragonFlyBSD)
@@ -1270,6 +1380,11 @@ else version (NetBSD)
     alias void* pthread_barrier_t;
     alias void* pthread_barrierattr_t;
 }
+else version (OpenBSD)
+{
+    alias void* pthread_barrier_t;
+    alias void* pthread_barrierattr_t;
+}
 else version (DragonFlyBSD)
 {
     alias void* pthread_barrier_t;
@@ -1300,6 +1415,27 @@ else version (CRuntime_Bionic)
 }
 else version (CRuntime_Musl)
 {
+    version (D_LP64)
+    {
+        union pthread_barrier_t
+        {
+            int[8] __i;
+            void*[4] __p;
+        }
+    }
+    else
+    {
+        union pthread_barrier_t
+        {
+            int[5] __i;
+            void*[5] __p;
+        }
+    }
+
+    struct pthread_barrierattr_t
+    {
+        uint __attr;
+    }
 }
 else version (CRuntime_UClibc)
 {
@@ -1339,6 +1475,10 @@ else version (NetBSD)
 {
     //already defined
 }
+else version (OpenBSD)
+{
+    alias void* pthread_spinlock_t;
+}
 else version (DragonFlyBSD)
 {
     alias void* pthread_spinlock_t;
@@ -1350,6 +1490,10 @@ else version (Solaris)
 else version (CRuntime_UClibc)
 {
     alias int pthread_spinlock_t; // volatile
+}
+else version (CRuntime_Musl)
+{
+    alias int pthread_spinlock_t;
 }
 
 //

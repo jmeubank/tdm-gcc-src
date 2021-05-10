@@ -1,5 +1,5 @@
 /* crtbegin object for windows32 targets.
-   Copyright (C) 2007-2019 Free Software Foundation, Inc.
+   Copyright (C) 2007-2020 Free Software Foundation, Inc.
 
    Contributed by Danny Smith <dannysmith@users.sourceforge.net>
 
@@ -78,7 +78,7 @@ __deregister_frame_info (__attribute__((unused)) const void *p)
 /* Stick a label at the beginning of the frame unwind info so we can
    register/deregister it with the exception handling library code.  */
 #if DWARF2_UNWIND_INFO
-EH_FRAME_SECTION_CONST char __EH_FRAME_BEGIN__[]
+static EH_FRAME_SECTION_CONST char __EH_FRAME_BEGIN__[]
   __attribute__((used, section(__LIBGCC_EH_FRAME_SECTION_NAME__), aligned(4)))
   = { };
 

@@ -1,6 +1,6 @@
 // Random number extensions -*- C++ -*-
 
-// Copyright (C) 2012-2019 Free Software Foundation, Inc.
+// Copyright (C) 2012-2020 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -208,38 +208,38 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   namespace {
 
     template<size_t __shift>
-      inline void __rshift(uint32_t *___out, const uint32_t *___in)
+      inline void __rshift(uint32_t *__out, const uint32_t *__in)
       {
-	uint64_t __th = ((static_cast<uint64_t>(___in[3]) << 32)
-			 | static_cast<uint64_t>(___in[2]));
-	uint64_t __tl = ((static_cast<uint64_t>(___in[1]) << 32)
-			 | static_cast<uint64_t>(___in[0]));
+	uint64_t __th = ((static_cast<uint64_t>(__in[3]) << 32)
+			 | static_cast<uint64_t>(__in[2]));
+	uint64_t __tl = ((static_cast<uint64_t>(__in[1]) << 32)
+			 | static_cast<uint64_t>(__in[0]));
 
 	uint64_t __oh = __th >> (__shift * 8);
 	uint64_t __ol = __tl >> (__shift * 8);
 	__ol |= __th << (64 - __shift * 8);
-	___out[1] = static_cast<uint32_t>(__ol >> 32);
-	___out[0] = static_cast<uint32_t>(__ol);
-	___out[3] = static_cast<uint32_t>(__oh >> 32);
-	___out[2] = static_cast<uint32_t>(__oh);
+	__out[1] = static_cast<uint32_t>(__ol >> 32);
+	__out[0] = static_cast<uint32_t>(__ol);
+	__out[3] = static_cast<uint32_t>(__oh >> 32);
+	__out[2] = static_cast<uint32_t>(__oh);
       }
 
 
     template<size_t __shift>
-      inline void __lshift(uint32_t *___out, const uint32_t *___in)
+      inline void __lshift(uint32_t *__out, const uint32_t *__in)
       {
-	uint64_t __th = ((static_cast<uint64_t>(___in[3]) << 32)
-			 | static_cast<uint64_t>(___in[2]));
-	uint64_t __tl = ((static_cast<uint64_t>(___in[1]) << 32)
-			 | static_cast<uint64_t>(___in[0]));
+	uint64_t __th = ((static_cast<uint64_t>(__in[3]) << 32)
+			 | static_cast<uint64_t>(__in[2]));
+	uint64_t __tl = ((static_cast<uint64_t>(__in[1]) << 32)
+			 | static_cast<uint64_t>(__in[0]));
 
 	uint64_t __oh = __th << (__shift * 8);
 	uint64_t __ol = __tl << (__shift * 8);
 	__oh |= __tl >> (64 - __shift * 8);
-	___out[1] = static_cast<uint32_t>(__ol >> 32);
-	___out[0] = static_cast<uint32_t>(__ol);
-	___out[3] = static_cast<uint32_t>(__oh >> 32);
-	___out[2] = static_cast<uint32_t>(__oh);
+	__out[1] = static_cast<uint32_t>(__ol >> 32);
+	__out[0] = static_cast<uint32_t>(__ol);
+	__out[3] = static_cast<uint32_t>(__oh >> 32);
+	__out[2] = static_cast<uint32_t>(__oh);
       }
 
 
@@ -581,7 +581,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	    __sum = *__varcovbegin++ - __sum;
 	    if (__builtin_expect(__sum <= _RealType(0), 0))
 	      std::__throw_runtime_error(__N("normal_mv_distribution::"
-					     "param_type::_M_init_full"));
+					     "param_type::_M_init_lower"));
 	    *__w++ = std::sqrt(__sum);
 	  }
       }
@@ -709,9 +709,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       __is >> __x._M_nd;
 
+      // The param_type temporary is built with a private constructor,
+      // to skip the Cholesky decomposition that would be performed
+      // otherwise.
       __x.param(typename normal_mv_distribution<_Dimen, _RealType>::
-		param_type(__mean.begin(), __mean.end(),
-			   __varcov.begin(), __varcov.end()));
+		param_type(__mean, __varcov));
 
       __is.flags(__flags);
       return __is;

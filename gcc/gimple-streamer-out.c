@@ -1,6 +1,6 @@
 /* Routines for emitting GIMPLE to a file stream.
 
-   Copyright (C) 2011-2019 Free Software Foundation, Inc.
+   Copyright (C) 2011-2020 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@google.com>
 
 This file is part of GCC.
@@ -48,8 +48,8 @@ output_phi (struct output_block *ob, gphi *phi)
       stream_write_tree (ob, gimple_phi_arg_def (phi, i), true);
       streamer_write_uhwi (ob, gimple_phi_arg_edge (phi, i)->src->index);
       bitpack_d bp = bitpack_create (ob->main_stream);
-      stream_output_location (ob, &bp, gimple_phi_arg_location (phi, i));
-      streamer_write_bitpack (&bp);
+      location_t loc = gimple_phi_arg_location (phi, i);
+      stream_output_location_and_block (ob, &bp, loc);
     }
 }
 
@@ -57,7 +57,7 @@ output_phi (struct output_block *ob, gphi *phi)
 /* Emit statement STMT on the main stream of output block OB.  */
 
 static void
-output_gimple_stmt (struct output_block *ob, gimple *stmt)
+output_gimple_stmt (struct output_block *ob, struct function *fn, gimple *stmt)
 {
   unsigned i;
   enum gimple_code code;
@@ -80,16 +80,12 @@ output_gimple_stmt (struct output_block *ob, gimple *stmt)
 		     as_a <gassign *> (stmt)),
 		   1);
   bp_pack_value (&bp, gimple_has_volatile_ops (stmt), 1);
-  hist = gimple_histogram_value (cfun, stmt);
+  hist = gimple_histogram_value (fn, stmt);
   bp_pack_value (&bp, hist != NULL, 1);
   bp_pack_var_len_unsigned (&bp, stmt->subcode);
 
-  /* Emit location information for the statement.  */
-  stream_output_location (ob, &bp, LOCATION_LOCUS (gimple_location (stmt)));
-  streamer_write_bitpack (&bp);
-
-  /* Emit the lexical block holding STMT.  */
-  stream_write_tree (ob, gimple_block (stmt), true);
+  /* Emit location information for the statement, including gimple_block.  */
+  stream_output_location_and_block (ob, &bp, gimple_location (stmt));
 
   /* Emit the operands.  */
   switch (gimple_code (stmt))
@@ -139,7 +135,7 @@ output_gimple_stmt (struct output_block *ob, gimple *stmt)
 	     so that we do not have to deal with type mismatches on
 	     merged symbols during IL read in.  The first operand
 	     of GIMPLE_DEBUG must be a decl, not MEM_REF, though.  */
-	  if (op && (i || !is_gimple_debug (stmt)))
+	  if (!flag_wpa && op && (i || !is_gimple_debug (stmt)))
 	    {
 	      basep = &op;
 	      if (TREE_CODE (*basep) == ADDR_EXPR)
@@ -147,7 +143,7 @@ output_gimple_stmt (struct output_block *ob, gimple *stmt)
 	      while (handled_component_p (*basep))
 		basep = &TREE_OPERAND (*basep, 0);
 	      if (VAR_P (*basep)
-		  && !auto_var_in_fn_p (*basep, current_function_decl)
+		  && !auto_var_in_fn_p (*basep, fn->decl)
 		  && !DECL_REGISTER (*basep))
 		{
 		  bool volatilep = TREE_THIS_VOLATILE (*basep);
@@ -228,7 +224,7 @@ output_bb (struct output_block *ob, basic_block bb, struct function *fn)
 	      print_gimple_stmt (streamer_dump_file, stmt, 0, TDF_SLIM);
 	    }
 
-	  output_gimple_stmt (ob, stmt);
+	  output_gimple_stmt (ob, fn, stmt);
 
 	  /* Emit the EH region holding STMT.  */
 	  region = lookup_stmt_eh_lp_fn (fn, stmt);

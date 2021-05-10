@@ -1,6 +1,6 @@
 // Components for manipulating sequences of characters -*- C++ -*-
 
-// Copyright (C) 1997-2019 Free Software Foundation, Inc.
+// Copyright (C) 1997-2020 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -381,7 +381,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 			  _InputIterator __k1, _InputIterator __k2,
 			  std::__false_type)
       {
-	const basic_string __s(__k1, __k2);
+	// _GLIBCXX_RESOLVE_LIB_DEFECTS
+	// 2788. unintentionally require a default constructible allocator
+	const basic_string __s(__k1, __k2, this->get_allocator());
 	const size_type __n1 = __i2 - __i1;
 	return _M_replace(__i1 - begin(), __n1, __s._M_data(),
 			  __s.size());
@@ -655,14 +657,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     basic_string<_CharT, _Traits, _Alloc>::
     basic_string(const _CharT* __s, size_type __n, const _Alloc& __a)
     : _M_dataplus(_S_construct(__s, __s + __n, __a), __a)
-    { }
-
-  // TBD: DPG annotate
-  template<typename _CharT, typename _Traits, typename _Alloc>
-    basic_string<_CharT, _Traits, _Alloc>::
-    basic_string(const _CharT* __s, const _Alloc& __a)
-    : _M_dataplus(_S_construct(__s, __s ? __s + traits_type::length(__s) :
-			       __s + npos, __a), __a)
     { }
 
   template<typename _CharT, typename _Traits, typename _Alloc>
@@ -1161,8 +1155,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       __glibcxx_requires_string(__lhs);
       typedef basic_string<_CharT, _Traits, _Alloc> __string_type;
       typedef typename __string_type::size_type	  __size_type;
+      typedef typename __gnu_cxx::__alloc_traits<_Alloc>::template
+	rebind<_CharT>::other _Char_alloc_type;
+      typedef __gnu_cxx::__alloc_traits<_Char_alloc_type> _Alloc_traits;
       const __size_type __len = _Traits::length(__lhs);
-      __string_type __str;
+      __string_type __str(_Alloc_traits::_S_select_on_copy(
+          __rhs.get_allocator()));
       __str.reserve(__len + __rhs.size());
       __str.append(__lhs, __len);
       __str.append(__rhs);
@@ -1175,7 +1173,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     {
       typedef basic_string<_CharT, _Traits, _Alloc> __string_type;
       typedef typename __string_type::size_type	  __size_type;
-      __string_type __str;
+      typedef typename __gnu_cxx::__alloc_traits<_Alloc>::template
+	rebind<_CharT>::other _Char_alloc_type;
+      typedef __gnu_cxx::__alloc_traits<_Char_alloc_type> _Alloc_traits;
+      __string_type __str(_Alloc_traits::_S_select_on_copy(
+          __rhs.get_allocator()));
       const __size_type __len = __rhs.size();
       __str.reserve(__len + 1);
       __str.append(__size_type(1), __lhs);
@@ -1463,7 +1465,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   // 21.3.7.9 basic_string::getline and operators
   template<typename _CharT, typename _Traits, typename _Alloc>
     basic_istream<_CharT, _Traits>&
-    operator>>(basic_istream<_CharT, _Traits>& ___in,
+    operator>>(basic_istream<_CharT, _Traits>& __in,
 	       basic_string<_CharT, _Traits, _Alloc>& __str)
     {
       typedef basic_istream<_CharT, _Traits>		__istream_type;
@@ -1476,7 +1478,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       __size_type __extracted = 0;
       typename __ios_base::iostate __err = __ios_base::goodbit;
-      typename __istream_type::sentry __cerb(___in, false);
+      typename __istream_type::sentry __cerb(__in, false);
       if (__cerb)
 	{
 	  __try
@@ -1485,12 +1487,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	      __str.erase();
 	      _CharT __buf[128];
 	      __size_type __len = 0;	      
-	      const streamsize __w = ___in.width();
+	      const streamsize __w = __in.width();
 	      const __size_type __n = __w > 0 ? static_cast<__size_type>(__w)
 		                              : __str.max_size();
-	      const __ctype_type& __ct = use_facet<__ctype_type>(___in.getloc());
+	      const __ctype_type& __ct = use_facet<__ctype_type>(__in.getloc());
 	      const __int_type __eof = _Traits::eof();
-	      __int_type __c = ___in.rdbuf()->sgetc();
+	      __int_type __c = __in.rdbuf()->sgetc();
 
 	      while (__extracted < __n
 		     && !_Traits::eq_int_type(__c, __eof)
@@ -1504,17 +1506,17 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		    }
 		  __buf[__len++] = _Traits::to_char_type(__c);
 		  ++__extracted;
-		  __c = ___in.rdbuf()->snextc();
+		  __c = __in.rdbuf()->snextc();
 		}
 	      __str.append(__buf, __len);
 
 	      if (_Traits::eq_int_type(__c, __eof))
 		__err |= __ios_base::eofbit;
-	      ___in.width(0);
+	      __in.width(0);
 	    }
 	  __catch(__cxxabiv1::__forced_unwind&)
 	    {
-	      ___in._M_setstate(__ios_base::badbit);
+	      __in._M_setstate(__ios_base::badbit);
 	      __throw_exception_again;
 	    }
 	  __catch(...)
@@ -1522,20 +1524,20 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	      // _GLIBCXX_RESOLVE_LIB_DEFECTS
 	      // 91. Description of operator>> and getline() for string<>
 	      // might cause endless loop
-	      ___in._M_setstate(__ios_base::badbit);
+	      __in._M_setstate(__ios_base::badbit);
 	    }
 	}
       // 211.  operator>>(istream&, string&) doesn't set failbit
       if (!__extracted)
 	__err |= __ios_base::failbit;
       if (__err)
-	___in.setstate(__err);
-      return ___in;
+	__in.setstate(__err);
+      return __in;
     }
 
   template<typename _CharT, typename _Traits, typename _Alloc>
     basic_istream<_CharT, _Traits>&
-    getline(basic_istream<_CharT, _Traits>& ___in,
+    getline(basic_istream<_CharT, _Traits>& __in,
 	    basic_string<_CharT, _Traits, _Alloc>& __str, _CharT __delim)
     {
       typedef basic_istream<_CharT, _Traits>		__istream_type;
@@ -1547,7 +1549,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       __size_type __extracted = 0;
       const __size_type __n = __str.max_size();
       typename __ios_base::iostate __err = __ios_base::goodbit;
-      typename __istream_type::sentry __cerb(___in, true);
+      typename __istream_type::sentry __cerb(__in, true);
       if (__cerb)
 	{
 	  __try
@@ -1555,7 +1557,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	      __str.erase();
 	      const __int_type __idelim = _Traits::to_int_type(__delim);
 	      const __int_type __eof = _Traits::eof();
-	      __int_type __c = ___in.rdbuf()->sgetc();
+	      __int_type __c = __in.rdbuf()->sgetc();
 
 	      while (__extracted < __n
 		     && !_Traits::eq_int_type(__c, __eof)
@@ -1563,7 +1565,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		{
 		  __str += _Traits::to_char_type(__c);
 		  ++__extracted;
-		  __c = ___in.rdbuf()->snextc();
+		  __c = __in.rdbuf()->snextc();
 		}
 
 	      if (_Traits::eq_int_type(__c, __eof))
@@ -1571,14 +1573,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	      else if (_Traits::eq_int_type(__c, __idelim))
 		{
 		  ++__extracted;		  
-		  ___in.rdbuf()->sbumpc();
+		  __in.rdbuf()->sbumpc();
 		}
 	      else
 		__err |= __ios_base::failbit;
 	    }
 	  __catch(__cxxabiv1::__forced_unwind&)
 	    {
-	      ___in._M_setstate(__ios_base::badbit);
+	      __in._M_setstate(__ios_base::badbit);
 	      __throw_exception_again;
 	    }
 	  __catch(...)
@@ -1586,24 +1588,24 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	      // _GLIBCXX_RESOLVE_LIB_DEFECTS
 	      // 91. Description of operator>> and getline() for string<>
 	      // might cause endless loop
-	      ___in._M_setstate(__ios_base::badbit);
+	      __in._M_setstate(__ios_base::badbit);
 	    }
 	}
       if (!__extracted)
 	__err |= __ios_base::failbit;
       if (__err)
-	___in.setstate(__err);
-      return ___in;
+	__in.setstate(__err);
+      return __in;
     }
 
   // Inhibit implicit instantiations for required instantiations,
   // which are defined via explicit instantiations elsewhere.
 #if _GLIBCXX_EXTERN_TEMPLATE
-  // The explicit instantiations definitions in src/c++11/string-inst.cc
-  // are compiled as C++14, so the new C++17 members aren't instantiated.
-  // Until those definitions are compiled as C++17 suppress the declaration,
-  // so C++17 code will implicitly instantiate std::string and std::wstring
-  // as needed.
+  // The explicit instantiation definitions in src/c++11/string-inst.cc and
+  // src/c++17/string-inst.cc only instantiate the members required for C++17
+  // and earlier standards (so not C++20's starts_with and ends_with).
+  // Suppress the explicit instantiation declarations for C++20, so C++20
+  // code will implicitly instantiate std::string and std::wstring as needed.
 # if __cplusplus <= 201703L && _GLIBCXX_EXTERN_TEMPLATE > 0
   extern template class basic_string<char>;
 # elif ! _GLIBCXX_USE_CXX11_ABI

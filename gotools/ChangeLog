@@ -1,10 +1,32 @@
-2019-08-12  Release Manager
+2021-04-08  Release Manager
 
-	* GCC 9.2.0 released.
+	* GCC 10.3.0 released.
 
-2019-05-03  Release Manager
+2020-07-23  Release Manager
 
-	* GCC 9.1.0 released.
+	* GCC 10.2.0 released.
+
+2020-05-07  Release Manager
+
+	* GCC 10.1.0 released.
+
+2020-01-21  Ian Lance Taylor  <iant@golang.org>
+
+	* Makefile.am (gofmt$(EXEEXT)): Link against $(LIBGOTOOL).
+	(check-go-tool): Copy some vendor directories.
+	* Makefile.in: Regenerate.
+
+2019-09-06  Ian Lance Taylor  <iant@golang.org>
+
+	* Makefile.am (check-carchive-test): Just run "go test", not "go
+	test carchive_test.go".
+	* Makefile.in: Regenerate.
+
+2019-05-27  Ian Lance Taylor  <iant@golang.org>
+
+	* Makefile.am (check-go-tool): Only chmod check-go-dir if it
+	exists.
+	* Makefile.in: Regenerate.
 
 2019-02-28  Ian Lance Taylor  <iant@golang.org>
 

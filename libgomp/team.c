@@ -1,4 +1,4 @@
-/* Copyright (C) 2005-2019 Free Software Foundation, Inc.
+/* Copyright (C) 2005-2020 Free Software Foundation, Inc.
    Contributed by Richard Henderson <rth@redhat.com>.
 
    This file is part of the GNU Offloading and Multi Processing Library
@@ -23,7 +23,7 @@
    see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    <http://www.gnu.org/licenses/>.  */
 
-/* This file handles the maintainence of threads in response to team
+/* This file handles the maintenance of threads in response to team
    creation and termination.  */
 
 #include "libgomp.h"
@@ -171,7 +171,7 @@ gomp_new_team (unsigned nthreads)
     {
       size_t extra = sizeof (team->ordered_release[0])
 		     + sizeof (team->implicit_task[0]);
-      team = gomp_malloc_cleared (sizeof (*team) + nthreads * extra);
+      team = team_malloc (sizeof (*team) + nthreads * extra);
 
 #ifndef HAVE_SYNC_BUILTINS
       gomp_mutex_init (&team->work_share_list_free_lock);
@@ -221,7 +221,7 @@ free_team (struct gomp_team *team)
   gomp_barrier_destroy (&team->barrier);
   gomp_mutex_destroy (&team->task_lock);
   priority_queue_free (&team->task_queue);
-  free (team);
+  team_free (team);
 }
 
 static void
@@ -239,6 +239,9 @@ gomp_free_pool_helper (void *thread_pool)
   pthread_exit (NULL);
 #elif defined(__nvptx__)
   asm ("exit;");
+#elif defined(__AMDGCN__)
+  asm ("s_dcache_wb\n\t"
+       "s_endpgm");
 #else
 #error gomp_free_pool_helper must terminate the thread
 #endif
@@ -282,8 +285,8 @@ gomp_free_thread (void *arg __attribute__((unused)))
       if (pool->last_team)
 	free_team (pool->last_team);
 #ifndef __nvptx__
-      free (pool->threads);
-      free (pool);
+      team_free (pool->threads);
+      team_free (pool);
 #endif
       thr->thread_pool = NULL;
     }
@@ -295,9 +298,6 @@ gomp_free_thread (void *arg __attribute__((unused)))
       gomp_end_task ();
       free (task);
     }
-#ifndef HAVE_TLS
-  free(pthread_getspecific (gomp_tls_key));
-#endif
 }
 
 /* Launch a team.  */
@@ -998,25 +998,18 @@ gomp_team_end (void)
 
 /* Constructors for this file.  */
 
-static short KeysCreated = 0;
-
-void __attribute__((constructor))
+static void __attribute__((constructor))
 initialize_team (void)
 {
 #if !defined HAVE_TLS && !defined USE_EMUTLS
-  struct gomp_thread *Ptr_initial_thread_tls_data;
-  Ptr_initial_thread_tls_data = 
-    (struct gomp_thread*) calloc(1,sizeof(struct gomp_thread));
+  static struct gomp_thread initial_thread_tls_data;
 
-  if (!KeysCreated) pthread_key_create (&gomp_tls_key, NULL);
-  pthread_setspecific (gomp_tls_key, Ptr_initial_thread_tls_data);
+  pthread_key_create (&gomp_tls_key, NULL);
+  pthread_setspecific (gomp_tls_key, &initial_thread_tls_data);
 #endif
 
-  if (!KeysCreated && 
-      pthread_key_create (&gomp_thread_destructor, gomp_free_thread) != 0)
-      gomp_fatal ("could not create thread pool destructor.");
-
-  KeysCreated = 1;
+  if (pthread_key_create (&gomp_thread_destructor, gomp_free_thread) != 0)
+    gomp_fatal ("could not create thread pool destructor.");
 }
 
 static void __attribute__((destructor))
@@ -1089,8 +1082,8 @@ gomp_pause_host (void)
       if (pool->last_team)
 	free_team (pool->last_team);
 #ifndef __nvptx__
-      free (pool->threads);
-      free (pool);
+      team_free (pool->threads);
+      team_free (pool);
 #endif
       thr->thread_pool = NULL;
     }
@@ -1102,7 +1095,7 @@ struct gomp_task_icv *
 gomp_new_icv (void)
 {
   struct gomp_thread *thr = gomp_thread ();
-  struct gomp_task *task = gomp_malloc_cleared (sizeof (struct gomp_task));
+  struct gomp_task *task = gomp_malloc (sizeof (struct gomp_task));
   gomp_init_task (task, NULL, &gomp_global_icv);
   thr->task = task;
 #ifdef LIBGOMP_USE_PTHREADS

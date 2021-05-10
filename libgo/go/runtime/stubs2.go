@@ -4,24 +4,27 @@
 
 // +build !plan9
 // +build !windows
-// +build !nacl
 // +build !js
-// +build !darwin
 
 package runtime
 
 import "unsafe"
 
+// read calls the read system call.
+// It returns a non-negative number of bytes written or a negative errno value.
 //go:noescape
 func read(fd int32, p unsafe.Pointer, n int32) int32
+
 func closefd(fd int32) int32
 
 //extern exit
 func exit(code int32)
 func usleep(usec uint32)
 
+// write calls the write system call.
+// It returns a non-negative number of bytes written or a negative errno value.
 //go:noescape
-func write(fd uintptr, p unsafe.Pointer, n int32) int32
+func write1(fd uintptr, p unsafe.Pointer, n int32) int32
 
 //go:noescape
 func open(name *byte, mode, perm int32) int32
@@ -32,3 +35,6 @@ func exitThread(wait *uint32) {
 	// This is never used by gccgo.
 	throw("exitThread")
 }
+
+// So that the C initialization code can call osinit.
+//go:linkname osinit runtime.osinit

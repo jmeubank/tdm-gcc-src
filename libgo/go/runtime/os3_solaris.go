@@ -12,10 +12,19 @@ var executablePath string
 func getexecname() *byte
 
 //extern getpagesize
-func getpagesize() int32
+func getPageSize() int32
+
+//extern sysconf
+func sysconf(int32) _C_long
+
+func osinit() {
+	ncpu = getncpu()
+	if physPageSize == 0 {
+		physPageSize = uintptr(getPageSize())
+	}
+}
 
 func sysargs(argc int32, argv **byte) {
-	physPageSize = uintptr(getpagesize())
 	executablePath = gostringnocopy(getexecname())
 }
 
