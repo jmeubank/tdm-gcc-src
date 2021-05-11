@@ -67,7 +67,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   // and should be avoided.
   inline int
   __convert_from_v(const __c_locale& __cloc __attribute__ ((__unused__)),
-		   char* __out,
+		   char* ___out,
 		   const int __size __attribute__ ((__unused__)),
 		   const char* __fmt, ...)
   {
@@ -89,9 +89,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     __builtin_va_start(__args, __fmt);
 
 #if _GLIBCXX_USE_C99_STDIO
-    const int __ret = __builtin_vsnprintf(__out, __size, __fmt, __args);
+    const int __ret = __builtin_vsnprintf(___out, __size, __fmt, __args);
 #else
-    const int __ret = __builtin_vsprintf(__out, __fmt, __args);
+    const int __ret = __builtin_vsprintf(___out, __fmt, __args);
 #endif
 
     __builtin_va_end(__args);

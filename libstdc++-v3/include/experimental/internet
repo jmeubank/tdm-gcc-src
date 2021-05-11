@@ -751,9 +751,9 @@ namespace ip
     if (__p == nullptr)
       return __make_address_v6(__str, nullptr, __ec);
     char __buf[64];
-    char* __out = __buf;
+    char* ___out = __buf;
     bool __skip_leading_zero = true;
-    while (__str < __p && __out < std::end(__buf))
+    while (__str < __p && ___out < std::end(__buf))
       {
 	if (!__skip_leading_zero || *__str != '0')
 	  {
@@ -761,18 +761,18 @@ namespace ip
 	      __skip_leading_zero = true;
 	    else
 	      __skip_leading_zero = false;
-	    *__out = *__str;
+	    *___out = *__str;
 	  }
 	__str++;
       }
-    if (__out == std::end(__buf))
+    if (___out == std::end(__buf))
       {
 	__ec = std::make_error_code(std::errc::invalid_argument);
 	return {};
       }
     else
       {
-	*__out = '\0';
+	*___out = '\0';
 	return __make_address_v6(__buf, __p + 1, __ec);
       }
   }
@@ -788,10 +788,10 @@ namespace ip
     if (__pos == string::npos)
       return __make_address_v6(__str.c_str(), nullptr, __ec);
     char __buf[64];
-    char* __out = __buf;
+    char* ___out = __buf;
     bool __skip_leading_zero = true;
     size_t __n = 0;
-    while (__n < __pos && __out < std::end(__buf))
+    while (__n < __pos && ___out < std::end(__buf))
       {
 	if (!__skip_leading_zero || __str[__n] != '0')
 	  {
@@ -799,18 +799,18 @@ namespace ip
 	      __skip_leading_zero = true;
 	    else
 	      __skip_leading_zero = false;
-	    *__out = __str[__n];
+	    *___out = __str[__n];
 	  }
 	__n++;
       }
-    if (__out == std::end(__buf))
+    if (___out == std::end(__buf))
       {
 	__ec = std::make_error_code(std::errc::invalid_argument);
 	return {};
       }
     else
       {
-	*__out = '\0';
+	*___out = '\0';
 	return __make_address_v6(__buf, __str.c_str() + __pos + 1, __ec);
       }
   }
@@ -823,20 +823,20 @@ namespace ip
   make_address_v6(string_view __str, error_code& __ec) noexcept
   {
     char __buf[64];
-    char* __out = __buf;
+    char* ___out = __buf;
     char* __scope = nullptr;
     bool __skip_leading_zero = true;
     size_t __n = 0;
-    while (__n < __str.length() && __out < std::end(__buf))
+    while (__n < __str.length() && ___out < std::end(__buf))
       {
 	if (__str[__n] == '%')
 	  {
 	    if (__scope)
-	      __out = std::end(__buf);
+	      ___out = std::end(__buf);
 	    else
 	      {
-		*__out = '\0';
-		__scope = ++__out;
+		*___out = '\0';
+		__scope = ++___out;
 		__skip_leading_zero = true;
 	      }
 	  }
@@ -846,19 +846,19 @@ namespace ip
 	      __skip_leading_zero = true;
 	    else
 	      __skip_leading_zero = false;
-	    *__out = __str[__n];
-	    __out++;
+	    *___out = __str[__n];
+	    ___out++;
 	  }
 	__n++;
       }
-    if (__out == std::end(__buf))
+    if (___out == std::end(__buf))
       {
 	__ec = std::make_error_code(std::errc::invalid_argument);
 	return {};
       }
     else
       {
-	*__out = '\0';
+	*___out = '\0';
 	return __make_address_v6(__buf, __scope, __ec);
       }
   }

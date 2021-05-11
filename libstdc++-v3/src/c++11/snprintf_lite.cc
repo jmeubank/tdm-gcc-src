@@ -74,14 +74,14 @@ namespace __gnu_cxx {
     // Long enough for decimal representation.
     int __ilen = 3 * sizeof(__val);
     char *__cs = static_cast<char*>(__builtin_alloca(__ilen));
-    char* __out = __cs + __ilen;
+    char* ___out = __cs + __ilen;
     do
       {
-	*--__out = "0123456789"[__val % 10];
+	*--___out = "0123456789"[__val % 10];
 	__val /= 10;
       }
     while (__val != 0);
-    size_t __len = __cs + __ilen - __out;
+    size_t __len = __cs + __ilen - ___out;
     if (__bufsize < __len)
       return -1;
 

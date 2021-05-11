@@ -486,13 +486,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       using __iter_concept = typename __iter_concept_impl<_Iter>::type;
 
   template<typename _In>
-    concept __indirectly_readable_impl = requires(const _In __in)
+    concept __indirectly_readable_impl = requires(const _In ___in)
       {
 	typename iter_value_t<_In>;
 	typename iter_reference_t<_In>;
 	typename iter_rvalue_reference_t<_In>;
-	{ *__in } -> same_as<iter_reference_t<_In>>;
-	{ ranges::iter_move(__in) } -> same_as<iter_rvalue_reference_t<_In>>;
+	{ *___in } -> same_as<iter_reference_t<_In>>;
+	{ ranges::iter_move(___in) } -> same_as<iter_rvalue_reference_t<_In>>;
       }
       && common_reference_with<iter_reference_t<_In>&&, iter_value_t<_In>&>
       && common_reference_with<iter_reference_t<_In>&&,

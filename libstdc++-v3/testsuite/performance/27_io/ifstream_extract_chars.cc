@@ -47,7 +47,7 @@ int main()
       out << line;
   }
   
-  // operator>>(basic_istream<char>& __in, basic_string<char>& __str)
+  // operator>>(basic_istream<char>& ___in, basic_string<char>& __str)
   {
     start_counters(time, resource);
     for (int iter = 0; iter < 25; ++iter)
@@ -62,7 +62,7 @@ int main()
     clear_counters(time, resource);
   }
   
-  // operator>>(basic_istream<char>& __in, char* __s)
+  // operator>>(basic_istream<char>& ___in, char* __s)
   {
     start_counters(time, resource);
     for (int iter = 0; iter < 25; ++iter)

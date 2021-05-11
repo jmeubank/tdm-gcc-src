@@ -1752,7 +1752,7 @@ namespace ranges
 	&& indirectly_copyable<_Iter, _Out>
 	&& uniform_random_bit_generator<remove_reference_t<_Gen>>
       _Out
-      operator()(_Iter __first, _Sent __last, _Out __out,
+      operator()(_Iter __first, _Sent __last, _Out ___out,
 		 iter_difference_t<_Iter> __n, _Gen&& __g) const
       {
 	if constexpr (forward_iterator<_Iter>)
@@ -1761,7 +1761,7 @@ namespace ranges
 	    // which may take linear time.
 	    auto __lasti = ranges::next(__first, __last);
 	    return std::sample(std::move(__first), std::move(__lasti),
-			       std::move(__out), __n, std::forward<_Gen>(__g));
+			       std::move(___out), __n, std::forward<_Gen>(__g));
 	  }
 	else
 	  {
@@ -1772,7 +1772,7 @@ namespace ranges
 	    iter_difference_t<_Iter> __sample_sz = 0;
 	    while (__first != __last && __sample_sz != __n)
 	      {
-		__out[__sample_sz++] = *__first;
+		___out[__sample_sz++] = *__first;
 		++__first;
 	      }
 	    for (auto __pop_sz = __sample_sz; __first != __last;
@@ -1780,9 +1780,9 @@ namespace ranges
 	      {
 		const auto __k = __d(__g, __param_type{0, __pop_sz});
 		if (__k < __n)
-		  __out[__k] = *__first;
+		  ___out[__k] = *__first;
 	      }
-	    return __out + __sample_sz;
+	    return ___out + __sample_sz;
 	  }
       }
 
@@ -1791,11 +1791,11 @@ namespace ranges
 	&& indirectly_copyable<iterator_t<_Range>, _Out>
 	&& uniform_random_bit_generator<remove_reference_t<_Gen>>
       _Out
-      operator()(_Range&& __r, _Out __out,
+      operator()(_Range&& __r, _Out ___out,
 		 range_difference_t<_Range> __n, _Gen&& __g) const
       {
 	return (*this)(ranges::begin(__r), ranges::end(__r),
-		       std::move(__out), __n,
+		       std::move(___out), __n,
 		       std::forward<_Gen>(__g));
       }
   };
@@ -2172,11 +2172,11 @@ namespace ranges
 				      projected<iterator_t<_Range2>, _Proj2>>
       constexpr partial_sort_copy_result<borrowed_iterator_t<_Range1>,
 					 borrowed_iterator_t<_Range2>>
-      operator()(_Range1&& __r, _Range2&& __out, _Comp __comp = {},
+      operator()(_Range1&& __r, _Range2&& ___out, _Comp __comp = {},
 		 _Proj1 __proj1 = {}, _Proj2 __proj2 = {}) const
       {
 	return (*this)(ranges::begin(__r), ranges::end(__r),
-		       ranges::begin(__out), ranges::end(__out),
+		       ranges::begin(___out), ranges::end(___out),
 		       std::move(__comp),
 		       std::move(__proj1), std::move(__proj2));
       }

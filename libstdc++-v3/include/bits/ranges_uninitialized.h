@@ -361,10 +361,10 @@ namespace ranges
 	  {
 	    auto __d1 = __ilast - __ifirst;
 	    auto __d2 = __olast - __ofirst;
-	    auto [__in, __out]
+	    auto [___in, ___out]
 	      = ranges::copy_n(std::make_move_iterator(std::move(__ifirst)),
 			       std::min(__d1, __d2), __ofirst);
-	    return {std::move(__in).base(), __out};
+	    return {std::move(___in).base(), ___out};
 	  }
 	else
 	  {
@@ -412,10 +412,10 @@ namespace ranges
 						 iter_rvalue_reference_t<_Iter>>)
 	  {
 	    auto __d = __olast - __ofirst;
-	    auto [__in, __out]
+	    auto [___in, ___out]
 	      = ranges::copy_n(std::make_move_iterator(std::move(__ifirst)),
 			       std::min(__n, __d), __ofirst);
-	    return {std::move(__in).base(), __out};
+	    return {std::move(___in).base(), ___out};
 	  }
 	else
 	  {

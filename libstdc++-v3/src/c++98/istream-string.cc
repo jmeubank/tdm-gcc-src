@@ -40,7 +40,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<>
     basic_istream<char>&
-    operator>>(basic_istream<char>& __in, basic_string<char>& __str)
+    operator>>(basic_istream<char>& ___in, basic_string<char>& __str)
     {
       typedef basic_istream<char>       	__istream_type;
       typedef __istream_type::int_type		__int_type;
@@ -52,18 +52,18 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       __size_type __extracted = 0;
       ios_base::iostate __err = ios_base::goodbit;
-      __istream_type::sentry __cerb(__in, false);
+      __istream_type::sentry __cerb(___in, false);
       if (__cerb)
 	{
 	  __try
 	    {
 	      __str.erase();
-	      const streamsize __w = __in.width();
+	      const streamsize __w = ___in.width();
 	      const __size_type __n = __w > 0 ? static_cast<__size_type>(__w)
 		                              : __str.max_size();
-	      const __ctype_type& __ct = use_facet<__ctype_type>(__in.getloc());
+	      const __ctype_type& __ct = use_facet<__ctype_type>(___in.getloc());
 	      const __int_type __eof = __traits_type::eof();
-	      __streambuf_type* __sb = __in.rdbuf();
+	      __streambuf_type* __sb = ___in.rdbuf();
 	      __int_type __c = __sb->sgetc();
 
 	      while (__extracted < __n
@@ -95,11 +95,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 	      if (__traits_type::eq_int_type(__c, __eof))
 		__err |= ios_base::eofbit;
-	      __in.width(0);
+	      ___in.width(0);
 	    }
 	  __catch(__cxxabiv1::__forced_unwind&)
 	    {
-	      __in._M_setstate(ios_base::badbit);
+	      ___in._M_setstate(ios_base::badbit);
 	      __throw_exception_again;
 	    }
 	  __catch(...)
@@ -107,19 +107,19 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	      // _GLIBCXX_RESOLVE_LIB_DEFECTS
 	      // 91. Description of operator>> and getline() for string<>
 	      // might cause endless loop
-	      __in._M_setstate(ios_base::badbit);
+	      ___in._M_setstate(ios_base::badbit);
 	    }
 	}
       if (!__extracted)
 	__err |= ios_base::failbit;
       if (__err)
-	__in.setstate(__err);
-      return __in;
+	___in.setstate(__err);
+      return ___in;
     }
 
   template<>
     basic_istream<char>&
-    getline(basic_istream<char>& __in, basic_string<char>& __str,
+    getline(basic_istream<char>& ___in, basic_string<char>& __str,
 	    char __delim)
     {
       typedef basic_istream<char>       	__istream_type;
@@ -133,7 +133,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       __size_type __extracted = 0;
       const __size_type __n = __str.max_size();
       ios_base::iostate __err = ios_base::goodbit;
-      __istream_type::sentry __cerb(__in, true);
+      __istream_type::sentry __cerb(___in, true);
       if (__cerb)
 	{
 	  __try
@@ -141,7 +141,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	      __str.erase();
 	      const __int_type __idelim = __traits_type::to_int_type(__delim);
 	      const __int_type __eof = __traits_type::eof();
-	      __streambuf_type* __sb = __in.rdbuf();
+	      __streambuf_type* __sb = ___in.rdbuf();
 	      __int_type __c = __sb->sgetc();
 
 	      while (__extracted < __n
@@ -183,7 +183,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	    }
 	  __catch(__cxxabiv1::__forced_unwind&)
 	    {
-	      __in._M_setstate(ios_base::badbit);
+	      ___in._M_setstate(ios_base::badbit);
 	      __throw_exception_again;
 	    }
 	  __catch(...)
@@ -191,20 +191,20 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	      // _GLIBCXX_RESOLVE_LIB_DEFECTS
 	      // 91. Description of operator>> and getline() for string<>
 	      // might cause endless loop
-	      __in._M_setstate(ios_base::badbit);
+	      ___in._M_setstate(ios_base::badbit);
 	    }
 	}
       if (!__extracted)
 	__err |= ios_base::failbit;
       if (__err)
-	__in.setstate(__err);
-      return __in;
+	___in.setstate(__err);
+      return ___in;
     }
 
 #ifdef _GLIBCXX_USE_WCHAR_T
   template<>
     basic_istream<wchar_t>&
-    getline(basic_istream<wchar_t>& __in, basic_string<wchar_t>& __str,
+    getline(basic_istream<wchar_t>& ___in, basic_string<wchar_t>& __str,
 	    wchar_t __delim)
     {
       typedef basic_istream<wchar_t>       	__istream_type;
@@ -218,7 +218,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       __size_type __extracted = 0;
       const __size_type __n = __str.max_size();
       ios_base::iostate __err = ios_base::goodbit;
-      __istream_type::sentry __cerb(__in, true);
+      __istream_type::sentry __cerb(___in, true);
       if (__cerb)
 	{
 	  __try
@@ -226,7 +226,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	      __str.erase();
 	      const __int_type __idelim = __traits_type::to_int_type(__delim);
 	      const __int_type __eof = __traits_type::eof();
-	      __streambuf_type* __sb = __in.rdbuf();
+	      __streambuf_type* __sb = ___in.rdbuf();
 	      __int_type __c = __sb->sgetc();
 
 	      while (__extracted < __n
@@ -268,7 +268,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	    }
 	  __catch(__cxxabiv1::__forced_unwind&)
 	    {
-	      __in._M_setstate(ios_base::badbit);
+	      ___in._M_setstate(ios_base::badbit);
 	      __throw_exception_again;
 	    }
 	  __catch(...)
@@ -276,14 +276,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	      // _GLIBCXX_RESOLVE_LIB_DEFECTS
 	      // 91. Description of operator>> and getline() for string<>
 	      // might cause endless loop
-	      __in._M_setstate(ios_base::badbit);
+	      ___in._M_setstate(ios_base::badbit);
 	    }
 	}
       if (!__extracted)
 	__err |= ios_base::failbit;
       if (__err)
-	__in.setstate(__err);
-      return __in;
+	___in.setstate(__err);
+      return ___in;
     }
 #endif
 

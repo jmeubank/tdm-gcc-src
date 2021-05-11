@@ -63,7 +63,7 @@ int main()
     clear_counters(time, resource);
   }
 
-  // getline(basic_istream<_CharT, _Traits>& __in,
+  // getline(basic_istream<_CharT, _Traits>& ___in,
   //         basic_string<_CharT, _Traits, _Alloc>& __str, _CharT __delim)
   {
     ifstream file(filename);

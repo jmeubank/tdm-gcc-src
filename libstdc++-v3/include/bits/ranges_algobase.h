@@ -219,34 +219,34 @@ namespace ranges
       using __detail::__is_normal_iterator;
       if constexpr (__is_move_iterator<_Iter> && same_as<_Iter, _Sent>)
 	{
-	  auto [__in, __out]
+	  auto [___in, ___out]
 	    = ranges::__copy_or_move<true>(std::move(__first).base(),
 					   std::move(__last).base(),
 					   std::move(__result));
-	  return {move_iterator{std::move(__in)}, std::move(__out)};
+	  return {move_iterator{std::move(___in)}, std::move(___out)};
 	}
       else if constexpr (__is_reverse_iterator<_Iter> && same_as<_Iter, _Sent>
 			 && __is_reverse_iterator<_Out>)
 	{
-	  auto [__in,__out]
+	  auto [___in,___out]
 	    = ranges::__copy_or_move_backward<_IsMove>(std::move(__last).base(),
 						       std::move(__first).base(),
 						       std::move(__result).base());
-	  return {reverse_iterator{std::move(__in)},
-		  reverse_iterator{std::move(__out)}};
+	  return {reverse_iterator{std::move(___in)},
+		  reverse_iterator{std::move(___out)}};
 	}
       else if constexpr (__is_normal_iterator<_Iter> && same_as<_Iter, _Sent>)
 	{
-	  auto [__in,__out]
+	  auto [___in,___out]
 	    = ranges::__copy_or_move<_IsMove>(__first.base(), __last.base(),
 					      __result);
-	  return {decltype(__first){__in}, std::move(__out)};
+	  return {decltype(__first){___in}, std::move(___out)};
 	}
       else if constexpr (__is_normal_iterator<_Out>)
 	{
-	  auto [__in,__out]
+	  auto [___in,___out]
 	    = ranges::__copy_or_move<_IsMove>(__first, __last, __result.base());
-	  return {std::move(__in), decltype(__result){__out}};
+	  return {std::move(___in), decltype(__result){___out}};
 	}
       else if constexpr (sized_sentinel_for<_Sent, _Iter>)
 	{
@@ -362,28 +362,28 @@ namespace ranges
       if constexpr (__is_reverse_iterator<_Iter> && same_as<_Iter, _Sent>
 		    && __is_reverse_iterator<_Out>)
 	{
-	  auto [__in,__out]
+	  auto [___in,___out]
 	    = ranges::__copy_or_move<_IsMove>(std::move(__last).base(),
 					      std::move(__first).base(),
 					      std::move(__result).base());
-	  return {reverse_iterator{std::move(__in)},
-		  reverse_iterator{std::move(__out)}};
+	  return {reverse_iterator{std::move(___in)},
+		  reverse_iterator{std::move(___out)}};
 	}
       else if constexpr (__is_normal_iterator<_Iter> && same_as<_Iter, _Sent>)
 	{
-	  auto [__in,__out]
+	  auto [___in,___out]
 	    = ranges::__copy_or_move_backward<_IsMove>(__first.base(),
 						       __last.base(),
 						       std::move(__result));
-	  return {decltype(__first){__in}, std::move(__out)};
+	  return {decltype(__first){___in}, std::move(___out)};
 	}
       else if constexpr (__is_normal_iterator<_Out>)
 	{
-	  auto [__in,__out]
+	  auto [___in,___out]
 	    = ranges::__copy_or_move_backward<_IsMove>(std::move(__first),
 						       std::move(__last),
 						       __result.base());
-	  return {std::move(__in), decltype(__result){__out}};
+	  return {std::move(___in), decltype(__result){___out}};
 	}
       else if constexpr (sized_sentinel_for<_Sent, _Iter>)
 	{
