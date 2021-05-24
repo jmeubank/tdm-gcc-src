@@ -1,0 +1,16 @@
+Modify the GCC version string when building the DW2 unwinding flavor
+
+From: J.M. Eubank <john@thesnappy.net>
+
+
+---
+ gcc/BASE-VER |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/gcc/BASE-VER b/gcc/BASE-VER
+index 0719d8102..95214935d 100644
+--- a/gcc/BASE-VER
++++ b/gcc/BASE-VER
+@@ -1 +1 @@
+-10.3.0
++10.3.0-dw2

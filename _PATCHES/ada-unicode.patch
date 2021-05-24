@@ -1,0 +1,200 @@
+Fix the include and define order in ada headers to allow Unicode TCHAR detection to work under MinGW.org
+
+From: J.M. Eubank <john@thesnappy.net>
+
+# HG changeset patch
+# Parent 7378b8981814e09c9089cc2749381608152dc269
+# Parent  cac722b5dc5792119c1f393a316b074fcc3fefbf
+---
+ gcc/ada/adafcntl.h |   57 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ gcc/ada/adaint.c   |   10 +++++++--
+ gcc/ada/mingw32.h  |   14 +++++++++++--
+ gcc/ada/rtinit.c   |   11 ++++++++--
+ gcc/ada/sysdep.c   |    2 +-
+ 5 files changed, 87 insertions(+), 7 deletions(-)
+ create mode 100644 gcc/ada/adafcntl.h
+
+diff --git a/gcc/ada/adafcntl.h b/gcc/ada/adafcntl.h
+new file mode 100644
+index 000000000..48b86e3c8
+--- /dev/null
++++ b/gcc/ada/adafcntl.h
+@@ -0,0 +1,57 @@
++/****************************************************************************
++ *                                                                          *
++ *                         GNAT COMPILER COMPONENTS                         *
++ *                                                                          *
++ *                             A D A F C N T L                              *
++ *                                                                          *
++ *                              C Header File                               *
++ *                                                                          *
++ *          Copyright (C) 2002-2018, Free Software Foundation, Inc.         *
++ *                                                                          *
++ * GNAT is free software;  you can  redistribute it  and/or modify it under *
++ * terms of the  GNU General Public License as published  by the Free Soft- *
++ * ware  Foundation;  either version 3,  or (at your option) any later ver- *
++ * sion.  GNAT is distributed in the hope that it will be useful, but WITH- *
++ * OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY *
++ * or FITNESS FOR A PARTICULAR PURPOSE.                                     *
++ *                                                                          *
++ * As a special exception under Section 7 of GPL version 3, you are granted *
++ * additional permissions described in the GCC Runtime Library Exception,   *
++ * version 3.1, as published by the Free Software Foundation.               *
++ *                                                                          *
++ * You should have received a copy of the GNU General Public License and    *
++ * a copy of the GCC Runtime Library Exception along with this program;     *
++ * see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    *
++ * <http://www.gnu.org/licenses/>.                                          *
++ *                                                                          *
++ * GNAT was originally developed  by the GNAT team at  New York University. *
++ * Extensive contributions were provided by Ada Core Technologies Inc.      *
++ *                                                                          *
++ ****************************************************************************/
++
++/*  This file provides a wrapper around the system <fcntl.h> header,
++ *  for use in situations where MINGW32 builds may require fall-back
++ *  support for some Unicode specific constants, when compiling for
++ *  use on legacy (pre-Vista) MS-Windows-32.  */
++
++#ifndef __ADAFCNTL_H_
++#define __ADAFCNTL_H_
++
++#include <fcntl.h>
++
++#ifdef __MINGW32__
++
++#ifndef _O_U8TEXT
++#define _O_U8TEXT   _O_TEXT
++#endif
++
++#ifndef _O_U16TEXT
++#define _O_U16TEXT  _O_TEXT
++#endif
++
++#ifndef _O_WTEXT
++#define _O_WTEXT    _O_TEXT
++#endif
++
++#endif	/* __MINGW32__ */
++#endif	/* !__ADAFCNTL_H_ */
+diff --git a/gcc/ada/adaint.c b/gcc/ada/adaint.c
+index 292215d16..3397351b0 100644
+--- a/gcc/ada/adaint.c
++++ b/gcc/ada/adaint.c
+@@ -52,6 +52,14 @@
+ #endif
+ #define _FILE_OFFSET_BITS 64
+ 
++#if defined (__MINGW32__) || defined (__CYGWIN__)
++/* We MUST do this up-front, because definition of the UNICODE feature
++ * test macros is (erroneously) delegated to this private header, and
++ * these MUST be defined BEFORE any system header may be included.
++ */
++#include "mingw32.h"
++#endif
++
+ #ifdef __vxworks
+ 
+ /* No need to redefine exit here.  */
+@@ -161,8 +169,6 @@ extern "C" {
+ 
+ #elif defined (__MINGW32__) || defined (__CYGWIN__)
+ 
+-#include "mingw32.h"
+-
+ /* Current code page and CCS encoding to use, set in initialize.c.  */
+ UINT __gnat_current_codepage;
+ UINT __gnat_current_ccs_encoding;
+diff --git a/gcc/ada/mingw32.h b/gcc/ada/mingw32.h
+index 3dbf7974a..466cbf5ee 100644
+--- a/gcc/ada/mingw32.h
++++ b/gcc/ada/mingw32.h
+@@ -36,8 +36,6 @@
+ #ifndef _MINGW32_H
+ #define _MINGW32_H
+ 
+-#include <_mingw.h>
+-
+ #ifndef RTX
+ #define GNAT_UNICODE_SUPPORT
+ #define _UNICODE /* For C runtime */
+@@ -49,6 +47,10 @@
+ #define _WIN32_WINNT 0x0501
+ #endif
+ 
++#ifdef _WIN64
++#  include <_mingw.h>
++#endif
++
+ #ifndef __CYGWIN__
+ #include <tchar.h>
+ #endif
+@@ -60,6 +62,10 @@
+ #endif
+ #include <windows.h>
+ 
++#ifdef __cplusplus
++extern "C" {
++#endif
++
+ /* After including this file it is possible to use the character t as prefix
+    to routines. If GNAT_UNICODE_SUPPORT is defined then the unicode enabled
+    versions will be used.  */
+@@ -122,4 +128,8 @@ extern UINT __gnat_current_ccs_encoding;
+ #define MAXPATHLEN MAX_PATH
+ #endif
+ 
++#ifdef __cplusplus
++}
++#endif
++
+ #endif /* _MINGW32_H */
+diff --git a/gcc/ada/rtinit.c b/gcc/ada/rtinit.c
+index 5c9c5ecc8..6b3bf6d0c 100644
+--- a/gcc/ada/rtinit.c
++++ b/gcc/ada/rtinit.c
+@@ -40,6 +40,14 @@
+ #include "vxWorks.h"
+ #endif
+ 
++/* Likewise this, to ensure that the UNICODE feature test macros, which
++ * are defined in "mingw32.h", (contrary to established convention), get
++ * defined before any other header is included.
++ */
++#if defined (__MINGW32__)
++#include "mingw32.h"
++#endif
++
+ #ifdef IN_RTS
+ /* We don't have libiberty, so use malloc.  */
+ #define xmalloc(S) malloc (S)
+@@ -50,7 +58,7 @@
+ #endif
+ 
+ #include "raise.h"
+-#include <fcntl.h>
++#include "adafcntl.h"
+ 
+ #ifdef __cplusplus
+ extern "C" {
+@@ -70,7 +78,6 @@ int __gnat_rt_init_count = 0;
+    and finalize properly the run-time. */
+ 
+ #if defined (__MINGW32__)
+-#include "mingw32.h"
+ #include <windows.h>
+ 
+ extern void __gnat_init_float (void);
+diff --git a/gcc/ada/sysdep.c b/gcc/ada/sysdep.c
+index 1e1f5eeb5..cd0304c32 100644
+--- a/gcc/ada/sysdep.c
++++ b/gcc/ada/sysdep.c
+@@ -58,7 +58,7 @@
+ #include <string.h>
+ #include <unistd.h>
+ 
+-#include <fcntl.h>
++#include "adafcntl.h"
+ #include <sys/stat.h>
+ #else
+ #include "config.h"

@@ -1,0 +1,111 @@
+Make static versions of libgcc and libstdc++ the default, instead of the shared versions
+
+From: J.M. Eubank <john@thesnappy.net>
+
+# HG changeset patch
+# Parent a01d69a95cbd13d3d3b0e072bb5208cb040b200c
+---
+ gcc/common.opt   |    3 +++
+ gcc/cp/g++spec.c |   23 ++++++++++++++---------
+ gcc/gcc.c        |    3 ++-
+ 3 files changed, 19 insertions(+), 10 deletions(-)
+
+diff --git a/gcc/common.opt b/gcc/common.opt
+index ec5235c3a..91e0529b8 100644
+--- a/gcc/common.opt
++++ b/gcc/common.opt
+@@ -3380,6 +3380,9 @@ Driver
+ static-libstdc++
+ Driver
+ 
++shared-libstdc++
++Driver
++
+ static-libgo
+ Driver
+ ; Documented for Go, but always accepted by driver.
+diff --git a/gcc/cp/g++spec.c b/gcc/cp/g++spec.c
+index 0ab63bcd2..cf6cf5b60 100644
+--- a/gcc/cp/g++spec.c
++++ b/gcc/cp/g++spec.c
+@@ -65,11 +65,11 @@ lang_specific_driver (struct cl_decoded_option **in_decoded_options,
+   /* If nonzero, the user gave us the `-p' or `-pg' flag.  */
+   int saw_profile_flag = 0;
+ 
+-  /* What do with libstdc++:
+-     -1 means we should not link in libstdc++
+-     0  means we should link in libstdc++ if it is needed
+-     1  means libstdc++ is needed and should be linked in.
+-     2  means libstdc++ is needed and should be linked statically.  */
++  /* What action to take for the c++ runtime library:
++    -1  means we should not link it in.
++     0  means we should link it if it is needed.
++     1  means it is needed and should be linked in (statically).
++     2  means it is needed but should be linked shared.  */
+   int library = 0;
+ 
+   /* The number of arguments being added to what's in argv, other than
+@@ -108,7 +108,7 @@ lang_specific_driver (struct cl_decoded_option **in_decoded_options,
+   int static_link = 0;
+ 
+   /* True if we should add -shared-libgcc to the command-line.  */
+-  int shared_libgcc = 1;
++  int shared_libgcc = 0;
+ 
+   /* The total number of arguments with the new stuff.  */
+   unsigned int argc;
+@@ -204,6 +204,11 @@ lang_specific_driver (struct cl_decoded_option **in_decoded_options,
+ 	  break;
+ 
+ 	case OPT_static_libstdc__:
++	  library = library >= 0 ? 1 : library;
++	  args[i] |= SKIPOPT;
++	  break;
++
++	case OPT_shared_libstdc__:
+ 	  library = library >= 0 ? 2 : library;
+ 	  args[i] |= SKIPOPT;
+ 	  break;
+@@ -336,7 +341,7 @@ lang_specific_driver (struct cl_decoded_option **in_decoded_options,
+   if (library > 0)
+     {
+ #ifdef HAVE_LD_STATIC_DYNAMIC
+-      if (library > 1 && !static_link)
++      if (library == 1 && !static_link)
+ 	{
+ 	  generate_option (OPT_Wl_, LD_STATIC_OPTION, 1, CL_DRIVER,
+ 			   &new_decoded_options[j]);
+@@ -349,7 +354,7 @@ lang_specific_driver (struct cl_decoded_option **in_decoded_options,
+       added_libraries++;
+       j++;
+       /* Add target-dependent static library, if necessary.  */
+-      if ((static_link || library > 1) && LIBSTDCXX_STATIC != NULL)
++      if ((static_link || library == 1) && LIBSTDCXX_STATIC != NULL)
+ 	{
+ 	  generate_option (OPT_l, LIBSTDCXX_STATIC, 1,
+ 			   CL_DRIVER, &new_decoded_options[j]);
+@@ -357,7 +362,7 @@ lang_specific_driver (struct cl_decoded_option **in_decoded_options,
+ 	  j++;
+ 	}
+ #ifdef HAVE_LD_STATIC_DYNAMIC
+-      if (library > 1 && !static_link)
++      if (library == 1 && !static_link)
+ 	{
+ 	  generate_option (OPT_Wl_, LD_DYNAMIC_OPTION, 1, CL_DRIVER,
+ 			   &new_decoded_options[j]);
+diff --git a/gcc/gcc.c b/gcc/gcc.c
+index 9f790db0d..a648e5ba4 100644
+--- a/gcc/gcc.c
++++ b/gcc/gcc.c
+@@ -4275,9 +4275,10 @@ driver_handle_option (struct gcc_options *opts,
+     case OPT_shared_libgcc:
+     case OPT_static_libgfortran:
+     case OPT_static_libstdc__:
++    case OPT_shared_libstdc__:
+       /* These are always valid, since gcc.c itself understands the
+ 	 first two, gfortranspec.c understands -static-libgfortran and
+-	 g++spec.c understands -static-libstdc++ */
++	 g++spec.c understands -static/shared-libstdc++ */
+       validated = true;
+       break;
+ 

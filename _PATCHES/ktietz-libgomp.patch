@@ -1,0 +1,61 @@
+Zero allocated memory in libgomp and run DejaGNU tests if desired
+
+From: J.M. Eubank <john@thesnappy.net>
+
+From
+   <https://github.com/niXman/mingw-builds/blob/develop/patches/gcc/gcc-9-ktietz-libgomp.patch>
+
+# HG changeset patch
+# Parent  373d07c7d11bfc0eb5453573ee8ca5f4c4868a3f
+---
+ libgomp/team.c                       |    2 +-
+ libgomp/testsuite/config/default.exp |    4 ++++
+ libgomp/work.c                       |    3 ++-
+ 3 files changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/libgomp/team.c b/libgomp/team.c
+index 112c0f566..a36b1c2c2 100644
+--- a/libgomp/team.c
++++ b/libgomp/team.c
+@@ -1105,7 +1105,7 @@ struct gomp_task_icv *
+ gomp_new_icv (void)
+ {
+   struct gomp_thread *thr = gomp_thread ();
+-  struct gomp_task *task = gomp_malloc (sizeof (struct gomp_task));
++  struct gomp_task *task = gomp_malloc_cleared (sizeof (struct gomp_task));
+   gomp_init_task (task, NULL, &gomp_global_icv);
+   thr->task = task;
+ #ifdef LIBGOMP_USE_PTHREADS
+diff --git a/libgomp/testsuite/config/default.exp b/libgomp/testsuite/config/default.exp
+index 4e045b067..af676dfe9 100644
+--- a/libgomp/testsuite/config/default.exp
++++ b/libgomp/testsuite/config/default.exp
+@@ -15,3 +15,7 @@
+ # <http://www.gnu.org/licenses/>.
+ 
+ load_lib "standard.exp"
++
++# Support for old dejagnu.  Must be loaded here, not in libstdc++.exp, to
++# make sure all existing procs are loaded when their presence is tested.
++load_file $srcdir/../../gcc/testsuite/lib/dejapatches.exp
+diff --git a/libgomp/work.c b/libgomp/work.c
+index 6817da8b4..365d52de6 100644
+--- a/libgomp/work.c
++++ b/libgomp/work.c
+@@ -85,6 +85,7 @@ alloc_work_share (struct gomp_team *team)
+ #else
+   ws = gomp_malloc (team->work_share_chunk * sizeof (struct gomp_work_share));
+ #endif
++  memset (ws, 0, team->work_share_chunk * sizeof (struct gomp_work_share));
+   ws->next_alloc = team->work_shares[0].next_alloc;
+   team->work_shares[0].next_alloc = ws;
+   team->work_share_list_alloc = &ws[1];
+@@ -191,7 +192,7 @@ gomp_work_share_start (size_t ordered)
+   /* Work sharing constructs can be orphaned.  */
+   if (team == NULL)
+     {
+-      ws = gomp_malloc (sizeof (*ws));
++      ws = gomp_malloc_cleared (sizeof (*ws));
+       gomp_init_work_share (ws, ordered, 1);
+       thr->ts.work_share = ws;
+       return true;

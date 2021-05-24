@@ -1,0 +1,113 @@
+Fixes for building libstdc++ under MinGW.org API
+
+From: J.M. Eubank <john@thesnappy.net>
+
+From: J.M. Eubank <john@thesnappy.net>
+
+# HG changeset patch
+# Parent  927de881e833b097c20b458675d4f40ee318c0c9
+---
+ libstdc++-v3/config/os/mingw32/error_constants.h |   13 ++++---------
+ libstdc++-v3/src/c++17/fs_ops.cc                 |    2 +-
+ libstdc++-v3/src/filesystem/ops-common.h         |   14 ++++++++++++++
+ libstdc++-v3/src/filesystem/ops.cc               |    4 ++--
+ 4 files changed, 21 insertions(+), 12 deletions(-)
+
+diff --git a/libstdc++-v3/config/os/mingw32/error_constants.h b/libstdc++-v3/config/os/mingw32/error_constants.h
+index 2222c5227..99cf844c4 100644
+--- a/libstdc++-v3/config/os/mingw32/error_constants.h
++++ b/libstdc++-v3/config/os/mingw32/error_constants.h
+@@ -99,9 +99,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
+ //    not_a_stream = 				ENOSTR,
+ //    not_connected = 				ENOTCONN,
+       not_enough_memory = 			ENOMEM,
+-#ifdef ENOTSUP
+-      not_supported = 				ENOTSUP,
+-#endif
++      not_supported = 				129, /* ENOTSUP from MinGW-w64 errno.h */
+ //    operation_canceled = 			ECANCELED,
+ //    operation_in_progress = 			EINPROGRESS,
+ #ifdef EPERM
+@@ -127,12 +125,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
+ #endif
+       too_many_files_open_in_system = 		ENFILE,
+       too_many_files_open = 			EMFILE,
+-      too_many_links = 				EMLINK
+-//    too_many_symbolic_link_levels = 		ELOOP,
+-#ifdef EOVERFLOW
+-	,
+-      value_too_large = 			EOVERFLOW
+-#endif
++      too_many_links = 				EMLINK,
++      too_many_symbolic_link_levels = 		114, /* ELOOP from MinGW-w64 errno.h */
++      value_too_large = 			132 /* EOVERFLOW from MinGW-w64 errno.h */
+ //    wrong_protocol_type = 			EPROTOTYPE
+    };
+ 
+diff --git a/libstdc++-v3/src/c++17/fs_ops.cc b/libstdc++-v3/src/c++17/fs_ops.cc
+index 81c84dfb5..dfde4b797 100644
+--- a/libstdc++-v3/src/c++17/fs_ops.cc
++++ b/libstdc++-v3/src/c++17/fs_ops.cc
+@@ -243,7 +243,7 @@ fs::canonical(const path& p, error_code& ec)
+ 	      if (!ec)
+ 		{
+ 		  if (--max_allowed_symlinks == 0)
+-		    ec.assign(ELOOP, std::generic_category());
++		    ec = make_error_code(std::errc::too_many_symbolic_link_levels);
+ 		  else
+ 		    {
+ 		      if (link.is_absolute())
+diff --git a/libstdc++-v3/src/filesystem/ops-common.h b/libstdc++-v3/src/filesystem/ops-common.h
+index 5719e79de..fef017a29 100644
+--- a/libstdc++-v3/src/filesystem/ops-common.h
++++ b/libstdc++-v3/src/filesystem/ops-common.h
+@@ -115,6 +115,19 @@ namespace __gnu_posix
+     return -1;
+   }
+ 
++#ifdef __MINGW32_VERSION /* MinGW.org */
++  inline int truncate(const wchar_t* path, off_t length)
++  {
++    const int fd = ::_wopen(path, _O_BINARY|_O_RDWR);
++    if (fd == -1)
++      return fd;
++    const int ret = ::ftruncate(fd, length);
++    int err = errno;
++    ::_close(fd);
++    errno = err;
++    return ret;
++  }
++#else
+   inline int truncate(const wchar_t* path, _off64_t length)
+   {
+     const int fd = ::_wopen(path, _O_BINARY|_O_RDWR);
+@@ -127,6 +140,7 @@ namespace __gnu_posix
+     ::_set_errno(err);
+     return ret;
+   }
++#endif
+   using char_type = wchar_t;
+ #elif defined _GLIBCXX_HAVE_UNISTD_H
+   using ::open;
+diff --git a/libstdc++-v3/src/filesystem/ops.cc b/libstdc++-v3/src/filesystem/ops.cc
+index 7cc82a50e..c238a0888 100644
+--- a/libstdc++-v3/src/filesystem/ops.cc
++++ b/libstdc++-v3/src/filesystem/ops.cc
+@@ -184,7 +184,7 @@ fs::canonical(const path& p, const path& base, error_code& ec)
+ 	      if (!ec)
+ 		{
+ 		  if (--max_allowed_symlinks == 0)
+-		    ec.assign(ELOOP, std::generic_category());
++		    ec = make_error_code(std::errc::too_many_symbolic_link_levels);
+ 		  else
+ 		    {
+ 		      if (link.is_absolute())
+@@ -967,7 +967,7 @@ fs::permissions(const path& p, perms prms, error_code& ec) noexcept
+     err = errno;
+ #else
+   if (nofollow && is_symlink(st))
+-    ec = std::make_error_code(std::errc::operation_not_supported);
++    ec = std::make_error_code(std::errc::not_supported);
+   else if (posix::chmod(p.c_str(), static_cast<mode_t>(prms)))
+     err = errno;
+ #endif

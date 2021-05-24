@@ -1,0 +1,82 @@
+Fix headers so that winsock constants are correctly found and used in Ada runtime.
+
+From: J.M. Eubank <john@thesnappy.net>
+
+# HG changeset patch
+# Parent  ee46895100525c45f760cf5d6fa2ca94e2bd4e73
+---
+ gcc/ada/gsocket.h |   16 ++++++++++++++--
+ gcc/ada/mingw32.h |    2 ++
+ gcc/ada/socket.c  |   10 ++++++++--
+ 3 files changed, 24 insertions(+), 4 deletions(-)
+
+diff --git a/gcc/ada/gsocket.h b/gcc/ada/gsocket.h
+index 91a06b819..4b18a8ec9 100644
+--- a/gcc/ada/gsocket.h
++++ b/gcc/ada/gsocket.h
+@@ -80,9 +80,19 @@
+ #define FD_SETSIZE 1024
+ 
+ #ifdef __MINGW32__
++
++/* winsock2.h allows WSAPoll related definitions only when
++ * _WIN32_WINNT >= 0x0600 */
++#  if !defined(_WIN32_WINNT) || _WIN32_WINNT < 0x0600
++#define _WIN32_WINNT 0x0600
++#  endif
++
++#include "mingw32.h"
+ #include <winsock2.h>
+ #include <ws2tcpip.h>
+-#include <versionhelpers.h>
++#  ifdef _WIN64
++#    include <versionhelpers.h>
++#  endif
+ 
+ #undef  EACCES
+ #define EACCES          WSAEACCES
+@@ -185,7 +195,9 @@
+ #endif
+ 
+ #include <limits.h>
+-#include <errno.h>
++#ifndef __MINGW32__
++#   include <errno.h>
++#endif
+ #include <stddef.h>
+ 
+ #if defined (__vxworks) && ! defined (__RTP__)
+diff --git a/gcc/ada/mingw32.h b/gcc/ada/mingw32.h
+index 466cbf5ee..edd7e55bd 100644
+--- a/gcc/ada/mingw32.h
++++ b/gcc/ada/mingw32.h
+@@ -60,6 +60,8 @@
+ #define _X86INTRIN_H_INCLUDED
+ #define _EMMINTRIN_H_INCLUDED
+ #endif
++#include <winsock2.h>
++#include <ws2tcpip.h>
+ #include <windows.h>
+ 
+ #ifdef __cplusplus
+diff --git a/gcc/ada/socket.c b/gcc/ada/socket.c
+index 6ca9d5038..a59868f6a 100644
+--- a/gcc/ada/socket.c
++++ b/gcc/ada/socket.c
+@@ -803,8 +803,14 @@ int __gnat_minus_500ms() {
+ #if defined (_WIN32)
+   // Windows Server 2019 and Windows 8.0 do not need 500 millisecond socket
+   // timeout correction.
+-  return !(IsWindows8OrGreater() && !IsWindowsServer()
+-           || IsWindowsVersionOrGreater(10, 0, 17763));
++  OSVERSIONINFOEX osvi;
++  ZeroMemory(&osvi, sizeof(osvi));
++  osvi.dwOSVersionInfoSize = sizeof(osvi);
++  GetVersionEx(&osvi);
++  return !((osvi.dwMajorVersion >= _WIN32_WINNT_WIN8 && osvi.wProductType != VER_NT_WORKSTATION)
++    || osvi.dwMajorVersion > 10
++    || (osvi.dwMajorVersion == 10 && osvi.dwMinorVersion > 0)
++    || (osvi.dwMajorVersion == 10 && osvi.dwMinorVersion == 0 && osvi.dwBuildNumber >= 17763));
+ #else
+    return 0;
+ #endif

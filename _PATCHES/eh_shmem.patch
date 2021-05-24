@@ -1,0 +1,824 @@
+Create a shared memory handle to allow exceptions from DLLs without shared GCC DLLs
+
+From: J.M. Eubank <john@thesnappy.net>
+
+# HG changeset patch
+# Parent a0e85042a260aaf663534dc550f1692b868d6d39
+# Parent  b4b69dfd3fec27647813db7e33d8a243e740de36
+---
+ libgcc/config/i386/eh_shmem3_mingw.c      |  226 +++++++++++++++++++++++++++++
+ libgcc/config/i386/t-gthr-win32           |    2 
+ libgcc/config/i386/t-mingw32              |    1 
+ libgcc/eh_shmem3.h                        |  151 +++++++++++++++++++
+ libgcc/unwind-dw2-fde.c                   |   30 +++-
+ libgcc/unwind-dw2.c                       |   15 +-
+ libgcc/unwind-sjlj.c                      |   15 +-
+ libstdc++-v3/libsupc++/eh_globals.cc      |   17 ++
+ libstdc++-v3/libsupc++/eh_term_handler.cc |    8 +
+ libstdc++-v3/libsupc++/eh_unex_handler.cc |    6 +
+ libstdc++-v3/libsupc++/unwind-cxx.h       |    7 +
+ libstdc++-v3/src/Makefile.in              |   40 ++++-
+ 12 files changed, 484 insertions(+), 34 deletions(-)
+ create mode 100644 libgcc/config/i386/eh_shmem3_mingw.c
+ create mode 100644 libgcc/eh_shmem3.h
+
+diff --git a/libgcc/config/i386/eh_shmem3_mingw.c b/libgcc/config/i386/eh_shmem3_mingw.c
+new file mode 100644
+index 000000000..15766bec8
+--- /dev/null
++++ b/libgcc/config/i386/eh_shmem3_mingw.c
+@@ -0,0 +1,226 @@
++/* -- eh_shmem3_mingw.c --
++*
++* See libgcc/eh_shmem3.h for a description of __EH_SHMEM.
++*
++* This is the MinGW/MinGW64 implementation of __EH_SHMEM, based in part on a
++* mechanism originally developed by Thomas Pfaff and Adriano dos Santos
++* Fernandes, reimplemented by J.M. Eubank as of 2021 with suggestions from
++* Ralph Engels.
++*
++* This code is released into the public domain without warranty; it may be
++* freely used and redistributed.
++*/
++
++#include "eh_shmem3.h"
++
++#if USE_SHMEM3
++
++#define WIN32_LEAN_AND_MEAN
++/* #include <malloc.h> */
++/* #include <stdio.h> */
++#include <stdlib.h> /* For _onexit */
++#include <windows.h>
++
++
++/* This is actually required to break a circular dependency - this code is used
++ * by the exception handler, so it can't depend on the exception handler.
++ */
++#pragma GCC optimize "no-exceptions"
++
++
++__SHMEM_NAME(region_struct) __SHMEM_NAME(local_shmem_region) = {0};
++static char full_atom_name[sizeof(SHMEM_VERSION_PREFIX) + (sizeof(void*) * 8) + 1];
++static char mutex_name[sizeof(SHMEM_VERSION_PREFIX) + (sizeof(DWORD) * 2)];
++
++
++static void shmem3_debugbreak(void)
++{
++    __asm__ __volatile__("int {$}3":);
++}
++
++/* bughunter, creates a breakpoint at the failed function and prints error */
++static void __eh_shmem_get_error(const char *msg)
++{
++    DWORD err_code;
++    if (__builtin_expect((err_code = GetLastError()) != NO_ERROR, 0))
++    {
++        /* maybe print error to screen ? */
++        LPSTR err;
++        if (FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
++         NULL, err_code, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
++         (LPSTR)&err, 0, NULL))
++        {
++            OutputDebugStringA(err); /* or otherwise log it */
++            OutputDebugStringA(msg);
++            LocalFree(err);
++        }
++        /* drop a breakpoint if the debugger is present */
++        if (IsDebuggerPresent())
++            shmem3_debugbreak();
++    }
++}
++
++
++static void* __eh_shmem_get_ptr_from_atom(ATOM atom, char* name_buf, size_t name_buf_len, size_t ptr_offset)
++{
++    size_t ptr_len = sizeof(void*) * 8;
++    if ((name_buf_len - ptr_offset - 1) < ptr_len)
++    {
++        __eh_shmem_get_error("string mismatch in atom\n");
++        return 0;
++    }
++    if (!GetAtomNameA(atom, name_buf, (int)name_buf_len))
++    {
++        __eh_shmem_get_error("failed to get string from atom\n");
++        return 0;
++    }
++    size_t ptr = 0;
++    size_t i = 0;
++    for (; i < ptr_len; ++i)
++    {
++        if (name_buf[ptr_offset + i] == 'A')
++            ptr |= ((size_t)1u << (ptr_len - i));
++    }
++    return (void*)ptr;
++}
++
++
++int __SHMEM_NAME(cleanup_local_region)(void);
++int __SHMEM_NAME(cleanup_local_region)(void)
++{
++    /* This mutex is needed to prevent another __eh_shmem region being added or removed while we are
++     * traversing the list.
++     */
++    HANDLE hmutex = CreateMutexA(0, FALSE, mutex_name);
++    if (WaitForSingleObject(hmutex, INFINITE) != WAIT_OBJECT_0)
++    {
++        __eh_shmem_get_error("failed to to lock cleanup mutex\n");
++        CloseHandle(hmutex);
++        return 0;
++    }
++
++    /* If there is at least one other region still in the list, remove ourselves from it */
++    __SHMEM_NAME(region_struct)* runner = __SHMEM_NAME(local_shmem_region).head;
++    if (runner->next)
++    {
++        if (runner == &(__SHMEM_NAME(local_shmem_region)))
++        {
++            /* We were the head of the list */
++            runner->head = runner->next;
++        }
++        while (runner)
++        {
++            if (runner->next == &(__SHMEM_NAME(local_shmem_region)))
++                runner->next = runner->next->next;
++            else if (runner->next)
++                runner->next->head = runner->head;
++            runner = runner->next;
++        }
++    }
++    /* Otherwise, remove the atom from the table so that the next instance to load will start a new list */
++    else
++    {
++        ATOM atom = FindAtomA(full_atom_name);
++        if (atom)
++            DeleteAtom(atom);
++    }
++
++    ReleaseMutex(hmutex);
++    CloseHandle(hmutex);
++
++    return 0;
++}
++
++/* Don't depend on libgcc */
++static void *memset0(void *dest, int c, size_t count)
++{
++    char *bytes = (char *)dest;
++    while (count--)
++        *bytes++ = (char)c;
++    return dest;
++}
++static void *memcpy0(void *dest, const void *src, size_t count)
++{
++    char *dest8 = (char *)dest;
++    const char *src8 = (const char *)src;
++    while (count--)
++        *dest8++ = *src8++;
++    return dest;
++}
++
++__SHMEM_NAME(region_struct)* __SHMEM_NAME(init_local_region)(void)
++{
++    /* Initialize the mutex name as a printable representation of GetCurrentProcessId() + SHMEM_VERSION_PREFIX */
++    const DWORD pid = GetCurrentProcessId();
++    size_t i = 0;
++    for (; i < sizeof(DWORD); ++i)
++    {
++        mutex_name[i * 2] = (*((const unsigned char*)&pid + i) >> 4) + 0x41;
++        mutex_name[i * 2 + 1] = (*((const unsigned char*)&pid + i) & 0xF) + 0x61;
++    }
++    memcpy0(mutex_name + (sizeof(DWORD) * 2), SHMEM_VERSION_PREFIX, sizeof(SHMEM_VERSION_PREFIX));
++
++    /* Initialize the atom name as SHMEM_VERSION_PREFIX + '-' + a bunch of 'a' */
++    const size_t name_len = sizeof(SHMEM_VERSION_PREFIX) - 1;
++    const size_t ptr_len = sizeof(void*) * 8;
++    memcpy0(full_atom_name, SHMEM_VERSION_PREFIX, name_len);
++    full_atom_name[name_len] = '-';
++    memset0(full_atom_name + name_len + 1, 'a', ptr_len);
++    full_atom_name[name_len + 1 + ptr_len] = 0;
++
++    /* This mutex is needed to prevent another __eh_shmem region being added or removed in the time between
++     * the FindAtomA call and when we finish traversing the linked list and adding ourselves to the end of
++     * it.
++     */
++    HANDLE hmutex = CreateMutexA(0, FALSE, mutex_name);
++    if (WaitForSingleObject(hmutex, INFINITE) != WAIT_OBJECT_0)
++    {
++        __eh_shmem_get_error("failed to to lock creation mutex\n");
++        CloseHandle(hmutex);
++        return 0;
++    }
++
++    __SHMEM_NAME(region_struct)* local_addr = &(__SHMEM_NAME(local_shmem_region));
++
++    /* See if a named atom was already created */
++    ATOM atom = FindAtomA(full_atom_name);
++    if (!atom)
++    {
++        /* The uppercase/lowercase A's following the prefix represent bits - A for 1 and a for 0. */
++        size_t i = 0;
++        for (; i < ptr_len; ++i)
++        {
++            if ((((size_t)local_addr) >> (ptr_len - i)) & 1)
++                full_atom_name[name_len + 1 + i] = 'A';
++        }
++        atom = AddAtomA(full_atom_name);
++        if (!atom)
++        {
++            __eh_shmem_get_error("failed to add string to atom table\n");
++            return 0;
++        }
++        __SHMEM_NAME(local_shmem_region).head = local_addr;
++        _onexit(__SHMEM_NAME(cleanup_local_region));
++    }
++    else
++    {
++        __SHMEM_NAME(region_struct)* runner = (__SHMEM_NAME(region_struct)*)__eh_shmem_get_ptr_from_atom(atom,
++         full_atom_name, name_len + 1 + ptr_len + 1, name_len + 1);
++        __SHMEM_NAME(local_shmem_region).head = runner;
++        /* Check if we're already part of the linked list; add ourselves if not */
++        while (runner->next && runner != local_addr)
++            runner = runner->next;
++        if (runner != local_addr)
++        {
++            runner->next = local_addr;
++            _onexit(__SHMEM_NAME(cleanup_local_region));
++        }
++    }
++
++    ReleaseMutex(hmutex);
++    CloseHandle(hmutex);
++
++    return __SHMEM_NAME(local_shmem_region).head;
++}
++
++#endif /* USE_SHMEM3 */
+diff --git a/libgcc/config/i386/t-gthr-win32 b/libgcc/config/i386/t-gthr-win32
+index e7380d6f6..b9be1e707 100644
+--- a/libgcc/config/i386/t-gthr-win32
++++ b/libgcc/config/i386/t-gthr-win32
+@@ -1,2 +1,2 @@
+ # We hide calls to w32api needed for w32 thread support here:
+-LIB2ADD = $(srcdir)/config/i386/gthr-win32.c
++LIB2ADD += $(srcdir)/config/i386/gthr-win32.c
+diff --git a/libgcc/config/i386/t-mingw32 b/libgcc/config/i386/t-mingw32
+index bfdef6723..f47c2b55c 100644
+--- a/libgcc/config/i386/t-mingw32
++++ b/libgcc/config/i386/t-mingw32
+@@ -1,2 +1,3 @@
+ # MinGW-specific parts of LIB_SPEC
+ SHLIB_LC = -lmingwthrd -lmingw32 -lmingwex -lmoldname -lmsvcrt -ladvapi32 -lshell32 -luser32 -lkernel32
++LIB2ADD += $(srcdir)/config/i386/eh_shmem3_mingw.c
+diff --git a/libgcc/eh_shmem3.h b/libgcc/eh_shmem3.h
+new file mode 100644
+index 000000000..5b58cf142
+--- /dev/null
++++ b/libgcc/eh_shmem3.h
+@@ -0,0 +1,151 @@
++/* -- eh_shmem3.h --
++ *
++ * The __EH_SHMEM mechanism is for sharing named pointers among the instances of a
++ * static library compiled into separate modules (binaries or shared libraries)
++ * in one runtime program. It's used in libgcc and libstdc++ to be able to
++ * propagate exceptions out of shared libraries even when libgcc and libstdc++
++ * are compiled in statically.
++ *
++ * This code is released into the public domain without warranty; it may be
++ * freely used and redistributed.
++ */
++
++
++#ifndef __EH_SHMEM3_H_INCLUDED
++#define __EH_SHMEM3_H_INCLUDED
++
++#if (defined(_WIN32) || defined(_WIN64)) && !defined(SHARED) && !defined(DLL_EXPORT) && !defined(USE_SHMEM3)
++#define USE_SHMEM3 1
++#elif !defined (USE_SHMEM3)
++#define USE_SHMEM3 0
++#endif
++
++#if USE_SHMEM3
++
++
++#ifdef __cplusplus
++#define __SHMEM_CLINK extern "C"
++#else
++#define __SHMEM_CLINK
++#endif
++
++
++#define __CONCAT2_INDIR(a, b) a ## b
++#define __SHMEM_CONCAT2(a, b) __CONCAT2_INDIR(a, b)
++
++
++#define __SHMEM_NAME(name) __SHMEM_CONCAT2(__eh_shmem3_gcc_tdm_, name)
++#define SHMEM_VERSION_PREFIX "__eh_shmem3_gcc_tdm_"
++
++
++#define __SHMEM_GET_NAMED_PTR(name) \
++ ( \
++ __SHMEM_NAME(local_shmem_region).head \
++ ? \
++ __SHMEM_NAME(local_shmem_region).head->name \
++ : \
++ __SHMEM_NAME(init_local_region)()->name \
++ )
++
++
++#define __SHMEM_DEFINE(type, name) \
++ type __SHMEM_CONCAT2(__shmem_, name); \
++ __SHMEM_CLINK type* __SHMEM_CONCAT2(__shmem_init_, name)(void); \
++ __SHMEM_CLINK type* __SHMEM_CONCAT2(__shmem_init_, name)(void) \
++ { \
++   __SHMEM_NAME(local_shmem_region).head->name = &__SHMEM_CONCAT2(__shmem_, name); \
++   return &__SHMEM_CONCAT2(__shmem_, name); \
++ }
++
++#define __SHMEM_DEFINE_INIT(type, name, initval) \
++ type __SHMEM_CONCAT2(__shmem_, name) = initval; \
++ __SHMEM_CLINK type* __SHMEM_CONCAT2(__shmem_init_, name)(void); \
++ __SHMEM_CLINK type* __SHMEM_CONCAT2(__shmem_init_, name)(void) \
++ { \
++   __SHMEM_NAME(local_shmem_region).head->name = &__SHMEM_CONCAT2(__shmem_, name); \
++   return &__SHMEM_CONCAT2(__shmem_, name); \
++ }
++
++#define __SHMEM_DEFINE_ARRAY(type, name, size) \
++ type __SHMEM_CONCAT2(__shmem_, name)[size]; \
++ __SHMEM_CLINK type* __SHMEM_CONCAT2(__shmem_init_, name)(void); \
++ __SHMEM_CLINK type* __SHMEM_CONCAT2(__shmem_init_, name)(void) \
++ { \
++   __SHMEM_NAME(local_shmem_region).head->name = __SHMEM_CONCAT2(__shmem_, name); \
++   return __SHMEM_CONCAT2(__shmem_, name); \
++ }
++
++
++#define __SHMEM_DECLARE(type, name) \
++ __SHMEM_CLINK type* __SHMEM_CONCAT2(__shmem_init_, name)(void);
++
++
++#define __SHMEM_GET(type, name) \
++ (*(type*)( \
++ __SHMEM_GET_NAMED_PTR(name) \
++ ? \
++ __SHMEM_GET_NAMED_PTR(name) \
++ : \
++ __SHMEM_CONCAT2(__shmem_init_, name)() \
++ ))
++
++#define __SHMEM_GET_ARRAY(type, name) \
++ ((type*)( \
++ __SHMEM_GET_NAMED_PTR(name) \
++ ? \
++ __SHMEM_GET_NAMED_PTR(name) \
++ : \
++ __SHMEM_CONCAT2(__shmem_init_, name)() \
++ ))
++
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++struct __SHMEM_NAME(region_struct_name)
++{
++    struct __SHMEM_NAME(region_struct_name)* head;
++    struct __SHMEM_NAME(region_struct_name)* next;
++    void* unwind_dw2_dwarf_reg_size_table;
++    void* unwind_dw2_fde_object_mutex;
++    void* unwind_dw2_fde_seen_objects;
++    void* unwind_dw2_fde_unseen_objects;
++    void* unwind_dw2_fde_marker;
++    void* unwind_dw2_fde_dw2_once;
++    void* unwind_dw2_once_regsizes;
++    void* unwind_sjlj_fc_static;
++    void* unwind_sjlj_fc_key;
++    void* unwind_sjlj_use_fc_key;
++    void* unwind_sjlj_once;
++    void* eh_globals_eh_globals;
++    void* eh_globals_init;
++    void* eh_term_handler__terminate_handler;
++    void* eh_unex_handler__unexpected_handler;
++};
++
++typedef struct __SHMEM_NAME(region_struct_name) __SHMEM_NAME(region_struct);
++
++extern __SHMEM_NAME(region_struct) __SHMEM_NAME(local_shmem_region);
++
++__SHMEM_CLINK __SHMEM_NAME(region_struct)* __SHMEM_NAME(init_local_region)(void);
++
++#ifdef __cplusplus
++}
++#endif
++
++
++#else /* ! USE_SHMEM3 */
++
++
++#define __SHMEM_DEFINE(type, name) type name;
++#define __SHMEM_DEFINE_INIT(type, name, initval) type name = initval;
++#define __SHMEM_DEFINE_ARRAY(type, name, size) type name[size];
++#define __SHMEM_DECLARE(type, name) extern type name;
++#define __SHMEM_GET(type, name) name
++#define __SHMEM_GET_ARRAY(type, name) name
++
++
++#endif /* ! USE_SHMEM3 */
++
++#endif /* ! __EH_SHMEM3_H_INCLUDED */
+diff --git a/libgcc/unwind-dw2-fde.c b/libgcc/unwind-dw2-fde.c
+index 680e64165..5151bad32 100644
+--- a/libgcc/unwind-dw2-fde.c
++++ b/libgcc/unwind-dw2-fde.c
+@@ -35,6 +35,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+ #include "unwind-pe.h"
+ #include "unwind-dw2-fde.h"
+ #include "gthr.h"
++#include "eh_shmem3.h"
+ #else
+ #if (defined(__GTHREAD_MUTEX_INIT) || defined(__GTHREAD_MUTEX_INIT_FUNCTION)) \
+     && defined(__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4)
+@@ -46,18 +47,23 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+    but not yet categorized in any way.  The seen_objects list has had
+    its pc_begin and count fields initialized at minimum, and is sorted
+    by decreasing value of pc_begin.  */
+-static struct object *unseen_objects;
+-static struct object *seen_objects;
++__SHMEM_DEFINE(struct object *, unwind_dw2_fde_unseen_objects)
++#define unseen_objects __SHMEM_GET(struct object *, unwind_dw2_fde_unseen_objects)
++__SHMEM_DEFINE(struct object *, unwind_dw2_fde_seen_objects)
++#define seen_objects __SHMEM_GET(struct object *, unwind_dw2_fde_seen_objects)
+ #ifdef ATOMIC_FDE_FAST_PATH
+-static int any_objects_registered;
++__SHMEM_DEFINE(int, unwind_dw2_fde_any_objects_registered)
++#define any_objects_registered __SHMEM_GET(int, unwind_dw2_fde_any_objects_registered)
+ #endif
+ 
+ #ifdef __GTHREAD_MUTEX_INIT
+-static __gthread_mutex_t object_mutex = __GTHREAD_MUTEX_INIT;
++__SHMEM_DEFINE_INIT(__gthread_mutex_t, unwind_dw2_fde_object_mutex, __GTHREAD_MUTEX_INIT)
++#define object_mutex __SHMEM_GET(__gthread_mutex_t, unwind_dw2_fde_object_mutex)
+ #define init_object_mutex_once()
+ #else
+ #ifdef __GTHREAD_MUTEX_INIT_FUNCTION
+-static __gthread_mutex_t object_mutex;
++__SHMEM_DEFINE(__gthread_mutex_t, unwind_dw2_fde_object_mutex)
++#define object_mutex __SHMEM_GET(__gthread_mutex_t, unwind_dw2_fde_object_mutex)
+ 
+ static void
+ init_object_mutex (void)
+@@ -65,17 +71,18 @@ init_object_mutex (void)
+   __GTHREAD_MUTEX_INIT_FUNCTION (&object_mutex);
+ }
+ 
++__SHMEM_DEFINE_INIT(__gthread_once_t, unwind_dw2_fde_dw2_once, __GTHREAD_ONCE_INIT)
+ static void
+ init_object_mutex_once (void)
+ {
+-  static __gthread_once_t once = __GTHREAD_ONCE_INIT;
+-  __gthread_once (&once, init_object_mutex);
++  __gthread_once (&__SHMEM_GET(__gthread_once_t, unwind_dw2_fde_dw2_once), init_object_mutex);
+ }
+ #else
+ /* ???  Several targets include this file with stubbing parts of gthr.h
+    and expect no locking to be done.  */
+ #define init_object_mutex_once()
+-static __gthread_mutex_t object_mutex;
++__SHMEM_DEFINE(__gthread_mutex_t, unwind_dw2_fde_object_mutex)
++#define object_mutex __SHMEM_GET(__gthread_mutex_t, unwind_dw2_fde_object_mutex)
+ #endif
+ #endif
+ 
+@@ -241,7 +248,9 @@ __deregister_frame_info_bases (const void *begin)
+ 
+  out:
+   __gthread_mutex_unlock (&object_mutex);
++#ifndef _WIN32
+   gcc_assert (ob);
++#endif
+   return (void *) ob;
+ }
+ 
+@@ -467,11 +476,13 @@ fde_insert (struct fde_accumulator *accu, const fde *this_fde)
+    chain to determine what should be placed in the ERRATIC array, and
+    what is the linear sequence.  This overlay is safe from aliasing.  */
+ 
++__SHMEM_DEFINE(const fde *, unwind_dw2_fde_marker)
++
+ static inline void
+ fde_split (struct object *ob, fde_compare_t fde_compare,
+ 	   struct fde_vector *linear, struct fde_vector *erratic)
+ {
+-  static const fde *marker;
++  #define marker __SHMEM_GET(const fde *, unwind_dw2_fde_marker)
+   size_t count = linear->count;
+   const fde *const *chain_end = &marker;
+   size_t i, j, k;
+@@ -506,6 +517,7 @@ fde_split (struct object *ob, fde_compare_t fde_compare,
+       erratic->array[k++] = linear->array[i];
+   linear->count = j;
+   erratic->count = k;
++  #undef marker
+ }
+ 
+ #define SWAP(x,y) do { const fde * tmp = x; x = y; y = tmp; } while (0)
+diff --git a/libgcc/unwind-dw2.c b/libgcc/unwind-dw2.c
+index fe896565d..2b8a02be9 100644
+--- a/libgcc/unwind-dw2.c
++++ b/libgcc/unwind-dw2.c
+@@ -36,6 +36,7 @@
+ #include "unwind-dw2-fde.h"
+ #include "gthr.h"
+ #include "unwind-dw2.h"
++#include "eh_shmem3.h"
+ 
+ #ifdef HAVE_SYS_SDT_H
+ #include <sys/sdt.h>
+@@ -148,7 +149,8 @@ struct _Unwind_Context
+ };
+ 
+ /* Byte size of every register managed by these routines.  */
+-static unsigned char dwarf_reg_size_table[__LIBGCC_DWARF_FRAME_REGISTERS__+1];
++__SHMEM_DEFINE_ARRAY(unsigned char, unwind_dw2_dwarf_reg_size_table, __LIBGCC_DWARF_FRAME_REGISTERS__+1)
++#define dwarf_reg_size_table __SHMEM_GET_ARRAY(unsigned char, unwind_dw2_dwarf_reg_size_table)
+ 
+ 
+ /* Read unaligned data from the instruction buffer.  */
+@@ -231,7 +233,7 @@ _Unwind_GetGR (struct _Unwind_Context *context, int regno)
+ #endif
+ 
+   index = DWARF_REG_TO_UNWIND_COLUMN (regno);
+-  gcc_assert (index < (int) sizeof(dwarf_reg_size_table));
++  gcc_assert (index < (int) (sizeof(unsigned char) * (DWARF_FRAME_REGISTERS + 1)));
+   size = dwarf_reg_size_table[index];
+   val = context->reg[index];
+ 
+@@ -279,7 +281,7 @@ _Unwind_SetGR (struct _Unwind_Context *context, int index, _Unwind_Word val)
+   void *ptr;
+ 
+   index = DWARF_REG_TO_UNWIND_COLUMN (index);
+-  gcc_assert (index < (int) sizeof(dwarf_reg_size_table));
++  gcc_assert (index < (int) (sizeof(unsigned char) * (DWARF_FRAME_REGISTERS + 1)));
+   size = dwarf_reg_size_table[index];
+ 
+   if (_Unwind_IsExtendedContext (context) && context->by_value[index])
+@@ -328,7 +330,7 @@ _Unwind_SetGRValue (struct _Unwind_Context *context, int index,
+ 		    _Unwind_Word val)
+ {
+   index = DWARF_REG_TO_UNWIND_COLUMN (index);
+-  gcc_assert (index < (int) sizeof(dwarf_reg_size_table));
++  gcc_assert (index < (int) (sizeof(unsigned char) * (DWARF_FRAME_REGISTERS + 1)));
+   /* Return column size may be smaller than _Unwind_Context_Reg_Val.  */
+   gcc_assert (dwarf_reg_size_table[index] <= sizeof (_Unwind_Context_Reg_Val));
+ 
+@@ -1575,6 +1577,8 @@ init_dwarf_reg_size_table (void)
+   __builtin_init_dwarf_reg_size_table (dwarf_reg_size_table);
+ }
+ 
++__SHMEM_DEFINE_INIT(__gthread_once_t, unwind_dw2_once_regsizes, __GTHREAD_ONCE_INIT)
++
+ static void __attribute__((noinline))
+ uw_init_context_1 (struct _Unwind_Context *context,
+ 		   void *outer_cfa, void *outer_ra)
+@@ -1594,8 +1598,7 @@ uw_init_context_1 (struct _Unwind_Context *context,
+ 
+ #if __GTHREADS
+   {
+-    static __gthread_once_t once_regsizes = __GTHREAD_ONCE_INIT;
+-    if (__gthread_once (&once_regsizes, init_dwarf_reg_size_table) != 0
++    if (__gthread_once (&__SHMEM_GET(__gthread_once_t, unwind_dw2_once_regsizes), init_dwarf_reg_size_table) != 0
+ 	&& dwarf_reg_size_table[0] == 0)
+       init_dwarf_reg_size_table ();
+   }
+diff --git a/libgcc/unwind-sjlj.c b/libgcc/unwind-sjlj.c
+index f8e9dc04f..211511ffc 100644
+--- a/libgcc/unwind-sjlj.c
++++ b/libgcc/unwind-sjlj.c
+@@ -29,6 +29,7 @@
+ #include "libgcc_tm.h"
+ #include "unwind.h"
+ #include "gthr.h"
++#include "eh_shmem3.h"
+ 
+ #ifdef __USING_SJLJ_EXCEPTIONS__
+ 
+@@ -95,11 +96,14 @@ typedef struct
+ /* Manage the chain of registered function contexts.  */
+ 
+ /* Single threaded fallback chain.  */
+-static struct SjLj_Function_Context *fc_static;
++__SHMEM_DEFINE(struct SjLj_Function_Context *, unwind_sjlj_fc_static)
++#define fc_static __SHMEM_GET(struct SjLj_Function_Context *, unwind_sjlj_fc_static)
+ 
+ #if __GTHREADS
+-static __gthread_key_t fc_key;
+-static int use_fc_key = -1;
++__SHMEM_DEFINE(__gthread_key_t, unwind_sjlj_fc_key)
++#define fc_key __SHMEM_GET(__gthread_key_t, unwind_sjlj_fc_key)
++__SHMEM_DEFINE_INIT(int, unwind_sjlj_use_fc_key, -1)
++#define use_fc_key __SHMEM_GET(int, unwind_sjlj_use_fc_key)
+ 
+ static void
+ fc_key_init (void)
+@@ -107,11 +111,12 @@ fc_key_init (void)
+   use_fc_key = __gthread_key_create (&fc_key, 0) == 0;
+ }
+ 
++__SHMEM_DEFINE_INIT(__gthread_once_t, unwind_sjlj_once, __GTHREAD_ONCE_INIT)
++
+ static void
+ fc_key_init_once (void)
+ {
+-  static __gthread_once_t once = __GTHREAD_ONCE_INIT;
+-  if (__gthread_once (&once, fc_key_init) != 0 || use_fc_key < 0)
++  if (__gthread_once (&__SHMEM_GET(__gthread_once_t, unwind_sjlj_once), fc_key_init) != 0 || use_fc_key < 0)
+     use_fc_key = 0;
+ }
+ #endif
+diff --git a/libstdc++-v3/libsupc++/eh_globals.cc b/libstdc++-v3/libsupc++/eh_globals.cc
+index 6c6869ffb..d4cc4163c 100644
+--- a/libstdc++-v3/libsupc++/eh_globals.cc
++++ b/libstdc++-v3/libsupc++/eh_globals.cc
+@@ -28,6 +28,7 @@
+ #include "cxxabi.h"
+ #include "unwind-cxx.h"
+ #include "bits/gthr.h"
++#include "eh_shmem3.h"
+ 
+ #if _GLIBCXX_HOSTED
+ using std::free;
+@@ -41,7 +42,7 @@ extern "C" void free(void *);
+ 
+ using namespace __cxxabiv1;
+ 
+-#if _GLIBCXX_HAVE_TLS
++#if _GLIBCXX_HAVE_TLS && !defined(__MINGW32__)
+ 
+ namespace
+ {
+@@ -65,7 +66,8 @@ __cxxabiv1::__cxa_get_globals() _GLIBCXX_NOTHROW
+ #else
+ 
+ // Single-threaded fallback buffer.
+-static __cxa_eh_globals eh_globals;
++__SHMEM_DEFINE(__cxa_eh_globals, eh_globals_eh_globals)
++#define eh_globals __SHMEM_GET(__cxa_eh_globals, eh_globals_eh_globals)
+ 
+ #if __GTHREADS
+ 
+@@ -104,9 +106,18 @@ struct __eh_globals_init
+       __gthread_key_delete(_M_key);
+     _M_init = false;
+   }
++
++  __eh_globals_init& operator = (__eh_globals_init& c)
++  {
++    _M_key = c._M_key;
++    _M_init = c._M_init;
++    c._M_init = false;
++    return *this;
++  }
+ };
+ 
+-static __eh_globals_init init;
++__SHMEM_DEFINE(__eh_globals_init, eh_globals_init)
++#define init __SHMEM_GET(__eh_globals_init, eh_globals_init)
+ 
+ extern "C" __cxa_eh_globals*
+ __cxxabiv1::__cxa_get_globals_fast() _GLIBCXX_NOTHROW
+diff --git a/libstdc++-v3/libsupc++/eh_term_handler.cc b/libstdc++-v3/libsupc++/eh_term_handler.cc
+index 338203856..e0cb544da 100644
+--- a/libstdc++-v3/libsupc++/eh_term_handler.cc
++++ b/libstdc++-v3/libsupc++/eh_term_handler.cc
+@@ -25,7 +25,11 @@
+ #include <bits/c++config.h>
+ #include "unwind-cxx.h"
+ #include "eh_term_handler.h"
++#include "eh_shmem3.h"
+ 
+ /* The current installed user handler.  */
+-std::terminate_handler __cxxabiv1::__terminate_handler =
+-	_GLIBCXX_DEFAULT_TERM_HANDLER;
++namespace __cxxabiv1
++{
++	__SHMEM_DEFINE_INIT(std::terminate_handler, eh_term_handler__terminate_handler,
++		_GLIBCXX_DEFAULT_TERM_HANDLER)
++}
+diff --git a/libstdc++-v3/libsupc++/eh_unex_handler.cc b/libstdc++-v3/libsupc++/eh_unex_handler.cc
+index 20e8ba895..dd718a658 100644
+--- a/libstdc++-v3/libsupc++/eh_unex_handler.cc
++++ b/libstdc++-v3/libsupc++/eh_unex_handler.cc
+@@ -23,7 +23,11 @@
+ // <http://www.gnu.org/licenses/>.
+ 
+ #include "unwind-cxx.h"
++#include "eh_shmem3.h"
+ 
+ /* The current installed user handler.  */
+-std::unexpected_handler __cxxabiv1::__unexpected_handler = std::terminate;
++namespace __cxxabiv1
++{
++  __SHMEM_DEFINE_INIT(std::unexpected_handler, eh_unex_handler__unexpected_handler, std::terminate)
++}
+ 
+diff --git a/libstdc++-v3/libsupc++/unwind-cxx.h b/libstdc++-v3/libsupc++/unwind-cxx.h
+index f495d89a5..b32b028e4 100644
+--- a/libstdc++-v3/libsupc++/unwind-cxx.h
++++ b/libstdc++-v3/libsupc++/unwind-cxx.h
+@@ -36,6 +36,7 @@
+ #include "unwind.h"
+ #include <bits/atomic_word.h>
+ #include <cxxabi.h>
++#include "eh_shmem3.h"
+ 
+ #ifdef _GLIBCXX_HAVE_SYS_SDT_H
+ #include <sys/sdt.h>
+@@ -195,8 +196,10 @@ extern void __unexpected(std::unexpected_handler)
+   __attribute__((__noreturn__));
+ 
+ // The current installed user handlers.
+-extern std::terminate_handler __terminate_handler;
+-extern std::unexpected_handler __unexpected_handler;
++__SHMEM_DECLARE(std::terminate_handler, eh_term_handler__terminate_handler)
++#define __terminate_handler __SHMEM_GET(std::terminate_handler, eh_term_handler__terminate_handler)
++__SHMEM_DECLARE(std::unexpected_handler, eh_unex_handler__unexpected_handler)
++#define __unexpected_handler __SHMEM_GET(std::unexpected_handler, eh_unex_handler__unexpected_handler)
+ 
+ // These are explicitly GNU C++ specific.
+ 
+diff --git a/libstdc++-v3/src/Makefile.in b/libstdc++-v3/src/Makefile.in
+index ea37a962a..bb076c3cb 100644
+--- a/libstdc++-v3/src/Makefile.in
++++ b/libstdc++-v3/src/Makefile.in
+@@ -500,18 +500,43 @@ cxx11_sources = \
+ 
+ libstdc___la_SOURCES = $(cxx98_sources) $(cxx11_sources)
+ libstdc___la_LIBADD = \
+-	$(GLIBCXX_LIBS) \
++	$(GLIBCXX_LIBS)
++libstdc___la_LIBADD_STATIC = \
+ 	$(top_builddir)/libsupc++/libsupc++convenience.la \
+ 	$(top_builddir)/src/c++98/libc++98convenience.la \
+ 	$(top_builddir)/src/c++11/libc++11convenience.la \
+ 	$(top_builddir)/src/c++17/libc++17convenience.la
++libstdc___la_LIBADD_SHARED = \
++	$(top_builddir)/libsupc++-shared/libsupc++convenience.la \
++	$(top_builddir)/src/c++98-shared/libc++98convenience.la \
++	$(top_builddir)/src/c++11-shared/libc++11convenience.la \
++	$(top_builddir)/src/c++17-shared/libc++17convenience.la
+ 
+ libstdc___la_DEPENDENCIES = \
+-	${version_dep} \
++	${version_dep}
++libstdc___la_DEPENDENCIES_STATIC = \
+ 	$(top_builddir)/libsupc++/libsupc++convenience.la \
+ 	$(top_builddir)/src/c++98/libc++98convenience.la \
+ 	$(top_builddir)/src/c++11/libc++11convenience.la \
+ 	$(top_builddir)/src/c++17/libc++17convenience.la
++libstdc___la_DEPENDENCIES_SHARED = \
++	$(top_builddir)/libsupc++-shared/libsupc++convenience.la \
++	$(top_builddir)/src/c++98-shared/libc++98convenience.la \
++	$(top_builddir)/src/c++11-shared/libc++11convenience.la \
++	$(top_builddir)/src/c++17-shared/libc++17convenience.la
++
++$(top_builddir)/libsupc++-shared/libsupc++convenience.la: $(top_builddir)/libsupc++/libsupc++convenience.la
++	mkdir -p -- "$(top_builddir)/libsupc++-shared"
++	$(MAKE) -f $(top_builddir)/libsupc++/Makefile -C $(top_builddir)/libsupc++-shared CFLAGS="$(CFLAGS) -DSHARED" CXXFLAGS="$(CXXFLAGS) -DSHARED"
++$(top_builddir)/src/c++98-shared/libc++98convenience.la: $(top_builddir)/src/c++98/libc++98convenience.la
++	mkdir -p -- "$(top_builddir)/src/c++98-shared"
++	$(MAKE) -f ../$(top_builddir)/src/c++98/Makefile -C $(top_builddir)/src/c++98-shared CFLAGS="$(CFLAGS) -DSHARED" CXXFLAGS="$(CXXFLAGS) -DSHARED"
++$(top_builddir)/src/c++11-shared/libc++11convenience.la: $(top_builddir)/src/c++11/libc++11convenience.la
++	mkdir -p -- "$(top_builddir)/src/c++11-shared"
++	$(MAKE) -f ../$(top_builddir)/src/c++11/Makefile -C $(top_builddir)/src/c++11-shared CFLAGS="$(CFLAGS) -DSHARED" CXXFLAGS="$(CXXFLAGS) -DSHARED"
++$(top_builddir)/src/c++17-shared/libc++17convenience.la: $(top_builddir)/src/c++17/libc++17convenience.la
++	mkdir -p -- "$(top_builddir)/src/c++17-shared"
++	$(MAKE) -f ../$(top_builddir)/src/c++17/Makefile -C $(top_builddir)/src/c++17-shared CFLAGS="$(CFLAGS) -DSHARED" CXXFLAGS="$(CXXFLAGS) -DSHARED"
+ 
+ libstdc___la_LDFLAGS = \
+ 	-version-info $(libtool_VERSION) ${version_arg} -lm
+@@ -694,8 +719,13 @@ clean-toolexeclibLTLIBRARIES:
+ 	  rm -f $${locs}; \
+ 	}
+ 
+-libstdc++.la: $(libstdc___la_OBJECTS) $(libstdc___la_DEPENDENCIES) $(EXTRA_libstdc___la_DEPENDENCIES) 
+-	$(AM_V_GEN)$(libstdc___la_LINK) $(am_libstdc___la_rpath) $(libstdc___la_OBJECTS) $(libstdc___la_LIBADD) $(LIBS)
++libstdc++.la: $(libstdc___la_OBJECTS) $(libstdc___la_DEPENDENCIES) $(EXTRA_libstdc___la_DEPENDENCIES) $(libstdc___la_DEPENDENCIES_SHARED) $(libstdc___la_DEPENDENCIES_STATIC)
++	$(LIBTOOL) --tag CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link \
++	    $(CXX) $(OPT_LDFLAGS) $(SECTION_LDFLAGS) -static $(AM_CXXFLAGS) $(LTLDFLAGS) -o $@ \
++	    $(libstdc___la_LDFLAGS) -rpath $(toolexeclibdir) $(libstdc___la_OBJECTS) $(libstdc___la_LIBADD) $(libstdc___la_LIBADD_STATIC) $(LIBS)
++	cp .libs/libstdc++.a libstdc++_noshared.a
++	$(AM_V_GEN)$(libstdc___la_LINK) $(am_libstdc___la_rpath) $(libstdc___la_OBJECTS) $(libstdc___la_LIBADD) $(libstdc___la_LIBADD_SHARED) $(LIBS)
++	cp libstdc++_noshared.a .libs/libstdc++.a
+ 
+ libvtv.la: $(libvtv_la_OBJECTS) $(libvtv_la_DEPENDENCIES) $(EXTRA_libvtv_la_DEPENDENCIES) 
+ 	$(AM_V_GEN)$(libvtv_la_LINK) $(am_libvtv_la_rpath) $(libvtv_la_OBJECTS) $(libvtv_la_LIBADD) $(LIBS)
+@@ -1076,7 +1106,7 @@ build-debug: stamp-debug
+ 	  mv Makefile Makefile.tmp; \
+ 	  sed -e 's,all-local: all-once,all-local:,' \
+ 	      -e 's,install-data-local: install-data-once,install-data-local:,' \
+-	      -e '/vpath/!s,src/c,src/debug/c,' \
++	      -e '/vpath/!s,src/c,src/debug/c,g' \
+ 	  < Makefile.tmp > Makefile ; \
+ 	  rm -f Makefile.tmp ; \
+ 	  $(MAKE) CXXFLAGS='$(DEBUG_FLAGS)' \

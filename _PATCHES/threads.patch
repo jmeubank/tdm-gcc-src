@@ -1,0 +1,110 @@
+Support winpthreads for the 32-bit mingw32 target and a static version of winpthreads
+
+From: J.M. Eubank <john@thesnappy.net>
+
+# HG changeset patch
+# Parent a3d8da318870ed60e340e9420811fc82ffbe5db6
+# Parent  a402c1f7e77bdb7cf37bdd88adf77588dc570470
+---
+ gcc/config/i386/mingw-w64.h           |    4 ++--
+ gcc/config/i386/mingw32.h             |    7 ++++---
+ libgcc/gthr-posix.h                   |    2 +-
+ libgfortran/intrinsics/system_clock.c |    5 +++++
+ libstdc++-v3/configure                |    5 +++--
+ 5 files changed, 15 insertions(+), 8 deletions(-)
+
+diff --git a/gcc/config/i386/mingw-w64.h b/gcc/config/i386/mingw-w64.h
+index 408e57cc0..0063d0499 100644
+--- a/gcc/config/i386/mingw-w64.h
++++ b/gcc/config/i386/mingw-w64.h
+@@ -90,8 +90,8 @@ along with GCC; see the file COPYING3.  If not see
+ #endif
+ 
+ #undef LINK_SPEC
+-#define LINK_SPEC SUB_LINK_SPEC " %{mwindows:--subsystem windows} \
+-  %{mconsole:--subsystem console} \
++#define LINK_SPEC SUB_LINK_SPEC " --exclude-libs=libpthread.a %{!shared:%{" SPEC_PTHREAD1 ":--undefined=__xl_f}} \
++  %{mwindows:--subsystem windows} %{mconsole:--subsystem console} \
+   %{shared: %{mdll: %eshared and mdll are not compatible}} \
+   %{shared: --shared} %{mdll:--dll} \
+   %{static:-Bstatic} %{!static:-Bdynamic} \
+diff --git a/gcc/config/i386/mingw32.h b/gcc/config/i386/mingw32.h
+index 138272ede..cd6f8690b 100644
+--- a/gcc/config/i386/mingw32.h
++++ b/gcc/config/i386/mingw32.h
+@@ -136,8 +136,8 @@ along with GCC; see the file COPYING3.  If not see
+   "%{!shared:%{!mdll:%{!m64:--large-address-aware}}}"
+ #endif
+ 
+-#define LINK_SPEC "%{mwindows:--subsystem windows} \
+-  %{mconsole:--subsystem console} \
++#define LINK_SPEC "--exclude-libs=libpthread.a %{!shared:%{" SPEC_PTHREAD1 ":--undefined=__xl_f}} \
++  %{mwindows:--subsystem windows} %{mconsole:--subsystem console} \
+   %{shared: %{mdll: %eshared and mdll are not compatible}} \
+   %{shared: --shared} %{mdll:--dll} \
+   %{static:-Bstatic} %{!static:-Bdynamic} \
+@@ -162,10 +162,11 @@ along with GCC; see the file COPYING3.  If not see
+ #else
+ #define SHARED_LIBGCC_SPEC " -lgcc "
+ #endif
++#define LIBGCC_PTHREAD_SPEC SHARED_LIBGCC_SPEC "%{" SPEC_PTHREAD1 ":-lpthread}" SHARED_LIBGCC_SPEC "-lkernel32 "
+ #undef REAL_LIBGCC_SPEC
+ #define REAL_LIBGCC_SPEC \
+   "%{mthreads:-lmingwthrd} -lmingw32 \
+-   " SHARED_LIBGCC_SPEC " \
++   " LIBGCC_PTHREAD_SPEC " \
+    -lmoldname -lmingwex %{!mcrtdll=*:-lmsvcrt} %{mcrtdll=*:-l%*} -lkernel32"
+ 
+ #undef STARTFILE_SPEC
+diff --git a/libgcc/gthr-posix.h b/libgcc/gthr-posix.h
+index 965247602..c0b97e518 100644
+--- a/libgcc/gthr-posix.h
++++ b/libgcc/gthr-posix.h
+@@ -82,7 +82,7 @@ typedef struct timespec __gthread_time_t;
+ # define __GTHREAD_COND_INIT_FUNCTION __gthread_cond_init_function
+ #endif
+ 
+-#if SUPPORTS_WEAK && GTHREAD_USE_WEAK
++#if SUPPORTS_WEAK && GTHREAD_USE_WEAK && !defined(__MINGW32__)
+ # ifndef __gthrw_pragma
+ #  define __gthrw_pragma(pragma)
+ # endif
+diff --git a/libgfortran/intrinsics/system_clock.c b/libgfortran/intrinsics/system_clock.c
+index aa2d663ff..fa40fb2e1 100644
+--- a/libgfortran/intrinsics/system_clock.c
++++ b/libgfortran/intrinsics/system_clock.c
+@@ -28,6 +28,11 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+ 
+ #include "time_1.h"
+ 
++#ifdef __MINGW32__
++#include <pthread.h>
++#include <pthread_time.h>
++#endif
++
+ 
+ #if !defined(__MINGW32__)
+ 
+diff --git a/libstdc++-v3/configure b/libstdc++-v3/configure
+index 766a0a8d5..cdf1d597d 100755
+--- a/libstdc++-v3/configure
++++ b/libstdc++-v3/configure
+@@ -21079,7 +21079,7 @@ $as_echo_n "checking for usleep... " >&6; }
+ int
+ main ()
+ {
+-sleep(1);
++/* sleep(1); */
+                       usleep(100);
+   ;
+   return 0;
+@@ -21100,7 +21100,8 @@ $as_echo "#define HAVE_USLEEP 1" >>confdefs.h
+ $as_echo "$ac_has_usleep" >&6; }
+   fi
+ 
+-  if test x"$ac_has_nanosleep$ac_has_sleep" = x"nono"; then
++  if test x"$ac_has_sleep" = x"no"; then
++      ac_no_sleep=yes
+       { $as_echo "$as_me:${as_lineno-$LINENO}: checking for Sleep" >&5
+ $as_echo_n "checking for Sleep... " >&6; }
+       cat confdefs.h - <<_ACEOF >conftest.$ac_ext

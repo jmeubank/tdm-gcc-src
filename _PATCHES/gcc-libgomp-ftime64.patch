@@ -1,0 +1,25 @@
+Use 64-bit ftime in libgomp
+
+From: J.M. Eubank <john@thesnappy.net>
+
+From
+   <https://github.com/niXman/mingw-builds/blob/develop/patches/gcc/gcc-libgomp-ftime64.patch>
+---
+ libgomp/config/mingw32/time.c |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/libgomp/config/mingw32/time.c b/libgomp/config/mingw32/time.c
+index 836702189..df9fb1d60 100644
+--- a/libgomp/config/mingw32/time.c
++++ b/libgomp/config/mingw32/time.c
+@@ -32,8 +32,8 @@
+ double
+ omp_get_wtime (void)
+ {
+-  struct _timeb timebuf;
+-  _ftime (&timebuf);
++  struct __timeb64 timebuf;
++  _ftime64 (&timebuf);
+   return (timebuf.time + (long)(timebuf.millitm) / 1e3);
+ }
+ 

@@ -1,0 +1,25 @@
+Fix memory leak when using C++11 mutexes
+
+From: J.M. Eubank <john@thesnappy.net>
+
+
+---
+ libgcc/gthr-posix.h |    4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/libgcc/gthr-posix.h b/libgcc/gthr-posix.h
+index c0b97e518..a484c6971 100644
+--- a/libgcc/gthr-posix.h
++++ b/libgcc/gthr-posix.h
+@@ -31,8 +31,10 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+ 
+ #define __GTHREADS 1
+ #define __GTHREADS_CXX0X 1
+-
+ #include <pthread.h>
++#if defined (_WIN32) && !defined (__CYGWIN__)
++#define _GTHREAD_USE_MUTEX_INIT_FUNC 1
++#endif
+ 
+ #if ((defined(_LIBOBJC) || defined(_LIBOBJC_WEAK)) \
+      || !defined(_GTHREAD_USE_MUTEX_TIMEDLOCK))

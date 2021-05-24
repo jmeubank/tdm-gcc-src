@@ -1,0 +1,66 @@
+Fixes for building C and Ada under TDM-GCC
+
+From: J.M. Eubank <john@thesnappy.net>
+
+
+---
+ gcc/ada/s-oscons-tmplt.c |    2 +-
+ gcc/ada/terminals.c      |    5 ++++-
+ gcc/config.gcc           |    1 -
+ gcc/ginclude/float.h     |    4 ++++
+ 4 files changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/gcc/ada/s-oscons-tmplt.c b/gcc/ada/s-oscons-tmplt.c
+index 2a1be803b..376b75a61 100644
+--- a/gcc/ada/s-oscons-tmplt.c
++++ b/gcc/ada/s-oscons-tmplt.c
+@@ -1712,7 +1712,7 @@ CND(SIZEOF_sockaddr_in6, "struct sockaddr_in6")
+  **/
+ #if defined(__MINGW32__)
+ struct sockaddr_un {
+-  ADDRESS_FAMILY sun_family;    /* AF_UNIX */
++  u_short sun_family;    /* AF_UNIX */
+   char           sun_path[108]; /* Pathname */
+ };
+ #endif
+diff --git a/gcc/ada/terminals.c b/gcc/ada/terminals.c
+index af4417fab..cd8608181 100644
+--- a/gcc/ada/terminals.c
++++ b/gcc/ada/terminals.c
+@@ -152,7 +152,10 @@ __gnat_setup_winsize (void *desc ATTRIBUTE_UNUSED,
+ #include <stdlib.h>
+ 
+ #include <windows.h>
+-#include <winternl.h>
++#include <io.h>
++#ifdef _WIN64
++#  include <winternl.h>
++#endif
+ 
+ #define MAXPATHLEN 1024
+ 
+diff --git a/gcc/config.gcc b/gcc/config.gcc
+index ab5066634..2d5296faf 100644
+--- a/gcc/config.gcc
++++ b/gcc/config.gcc
+@@ -2165,7 +2165,6 @@ i[34567]86-*-mingw* | x86_64-*-mingw*)
+ 	# This makes the logic if mingw's or the w64 feature set has to be used
+ 	case ${target} in
+ 		*-w64-*)
+-			user_headers_inc_next_post="${user_headers_inc_next_post} float.h"
+ 			user_headers_inc_next_pre="${user_headers_inc_next_pre} stddef.h stdarg.h"
+ 			tm_file="${tm_file} i386/mingw-w64.h"
+ 			if test x$enable_targets = xall; then
+diff --git a/gcc/ginclude/float.h b/gcc/ginclude/float.h
+index 9c4b03855..057c0ae56 100644
+--- a/gcc/ginclude/float.h
++++ b/gcc/ginclude/float.h
+@@ -539,4 +539,8 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+ 
+ #endif /* __DEC32_MANT_DIG__ */
+ 
++#if defined (__MINGW32__) && ! defined (_MINGW_FLOAT_H_)
++# include_next <float.h>
++#endif
++
+ #endif /* _FLOAT_H___ */
